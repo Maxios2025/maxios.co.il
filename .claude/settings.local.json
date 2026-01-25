@@ -1,0 +1,20 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(vercel domains:*)",
+      "Bash(curl:*)",
+      "Bash(vercel:*)",
+      "Bash(npm install:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx vercel:*)",
+      "Bash(npm run dev:*)",
+      "Bash(del \"c:\\\\Users\\\\lapto\\\\OneDrive\\\\Desktop\\\\maxios---cinematic-experience \\(2\\)\\\\lib\\\\supabase.ts\")",
+      "Bash(git init:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git config:*)"
+    ]
+  }
+}
