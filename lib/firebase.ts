@@ -1,5 +1,5 @@
 import { initializeApp } from 'firebase/app';
-import { getFirestore, collection, getDocs, doc, setDoc, deleteDoc, query, where, orderBy } from 'firebase/firestore';
+import { getFirestore, collection, getDocs, getDoc, doc, setDoc, deleteDoc, query, where } from 'firebase/firestore';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, User } from 'firebase/auth';
 
 // Firebase configuration - Replace these with your Firebase project config
@@ -37,6 +37,26 @@ export interface ContactMessage {
   created_at: string;
 }
 
+export interface Order {
+  orderNumber: string;
+  customer: {
+    name: string;
+    email: string;
+    phone: string;
+    city: string;
+    street: string;
+    zip?: string;
+  };
+  items: { id: string; name: string; qty: number; price: string }[];
+  subtotal: string;
+  discount: string;
+  promoCode: string | null;
+  total: string;
+  paymentMethod: 'cod' | 'card';
+  status: 'pending' | 'processing' | 'shipped' | 'delivered' | 'cancelled';
+  createdAt: string;
+}
+
 export interface UserProfile {
   id: string;
   email: string;
@@ -60,6 +80,7 @@ export interface DBProduct {
   desc_he: string;
   price: number;
   img: string;
+  images?: string[]; // Additional product images
   created_at: string;
   updated_at: string;
 }
@@ -79,7 +100,8 @@ export const fetchProducts = async () => {
         series: { en: p.series_en, ar: p.series_ar || p.series_en, he: p.series_he || p.series_en },
         desc: { en: p.desc_en, ar: p.desc_ar, he: p.desc_he },
         price: p.price,
-        img: p.img
+        img: p.img,
+        images: p.images || []
       };
     });
 
@@ -97,6 +119,7 @@ export const saveProduct = async (product: {
   desc: { en: string; ar: string; he: string };
   price: number;
   img: string;
+  images?: string[];
 }) => {
   try {
     const dbProduct = {
@@ -112,6 +135,7 @@ export const saveProduct = async (product: {
       desc_he: product.desc.he,
       price: product.price,
       img: product.img,
+      images: product.images || [],
       updated_at: new Date().toISOString(),
       created_at: new Date().toISOString()
     };
@@ -219,17 +243,91 @@ export const onAuthChange = (callback: (user: User | null) => void) => {
 };
 
 // Contact Messages
-export const saveContactMessage = async (data: { name: string; email: string; phone?: string; message: string }) => {
+export const saveContactMessage = async (data: { name: string; email: string; phone?: string | null; message: string }) => {
+  const messageId = `${Date.now()}_${data.email}`;
+  const messageData: ContactMessage = {
+    id: messageId,
+    name: data.name,
+    email: data.email,
+    message: data.message,
+    created_at: new Date().toISOString()
+  };
+  if (data.phone) {
+    messageData.phone = data.phone;
+  }
+
+  // Always save to localStorage first
+  const cached = localStorage.getItem('maxios_contact_messages');
+  const messages: ContactMessage[] = cached ? JSON.parse(cached) : [];
+  messages.unshift(messageData); // Add to beginning
+  localStorage.setItem('maxios_contact_messages', JSON.stringify(messages));
+
+  // Try Firebase (non-blocking)
   try {
-    const messageRef = doc(db, 'contact_messages', `${Date.now()}_${data.email}`);
-    await setDoc(messageRef, {
-      ...data,
-      created_at: new Date().toISOString()
-    });
+    const messageRef = doc(db, 'contact_messages', messageId);
+    await setDoc(messageRef, messageData);
     return { error: null };
   } catch (error) {
-    console.error('Error saving contact message:', error);
+    console.error('Error saving contact message to Firebase:', error);
     return { error };
+  }
+};
+
+export const fetchContactMessages = async (): Promise<ContactMessage[]> => {
+  try {
+    // Add timeout to prevent hanging (15 seconds)
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Firebase timeout')), 15000)
+    );
+
+    const fetchPromise = (async () => {
+      const messagesRef = collection(db, 'contact_messages');
+      const querySnapshot = await getDocs(messagesRef);
+
+      const messages = querySnapshot.docs.map(docSnap => ({
+        id: docSnap.id,
+        ...docSnap.data()
+      })) as ContactMessage[];
+
+      // Sort by created_at descending (newest first)
+      return messages.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+    })();
+
+    const messages = await Promise.race([fetchPromise, timeoutPromise]);
+
+    // Save to localStorage as backup
+    localStorage.setItem('maxios_contact_messages', JSON.stringify(messages));
+
+    return messages;
+  } catch (error) {
+    console.error('Error fetching contact messages:', error);
+    // Try to load from localStorage backup
+    const cached = localStorage.getItem('maxios_contact_messages');
+    if (cached) {
+      console.log('Using cached messages from localStorage');
+      return JSON.parse(cached);
+    }
+    return [];
+  }
+};
+
+export const deleteContactMessage = async (messageId: string) => {
+  // Remove from localStorage
+  const cached = localStorage.getItem('maxios_contact_messages');
+  if (cached) {
+    const messages: ContactMessage[] = JSON.parse(cached);
+    const updated = messages.filter(m => m.id !== messageId);
+    localStorage.setItem('maxios_contact_messages', JSON.stringify(updated));
+  }
+
+  // Try Firebase
+  try {
+    const messageRef = doc(db, 'contact_messages', messageId);
+    await deleteDoc(messageRef);
+    return { error: null };
+  } catch (error) {
+    console.error('Error deleting contact message from Firebase:', error);
+    return { error: null }; // Don't report error since localStorage was updated
   }
 };
 
@@ -251,7 +349,6 @@ export const saveUserProfile = async (userId: string, data: { email: string; nam
 export const getUserProfile = async (userId: string) => {
   try {
     const profileRef = doc(db, 'user_profiles', userId);
-    const { getDoc } = await import('firebase/firestore');
     const docSnap = await getDoc(profileRef);
 
     if (docSnap.exists()) {
@@ -264,48 +361,102 @@ export const getUserProfile = async (userId: string) => {
   }
 };
 
-// OTP Verification
-export const storeVerificationCode = async (email: string, code: string) => {
+// Orders
+export const saveOrder = async (order: Order) => {
+  // Always save to localStorage first
+  const cached = localStorage.getItem('maxios_orders');
+  const orders: Order[] = cached ? JSON.parse(cached) : [];
+  const existingIndex = orders.findIndex(o => o.orderNumber === order.orderNumber);
+  if (existingIndex >= 0) {
+    orders[existingIndex] = order;
+  } else {
+    orders.push(order);
+  }
+  localStorage.setItem('maxios_orders', JSON.stringify(orders));
+
+  // Try Firebase
   try {
-    const codeRef = doc(db, 'verification_codes', `${email}_${Date.now()}`);
-    await setDoc(codeRef, {
-      email,
-      code,
-      verified: false,
-      expires_at: new Date(Date.now() + 10 * 60 * 1000).toISOString(), // 10 min expiry
-      created_at: new Date().toISOString()
-    });
+    const orderRef = doc(db, 'orders', order.orderNumber);
+    await setDoc(orderRef, order);
     return { error: null };
   } catch (error) {
-    console.error('Error storing verification code:', error);
+    console.error('Error saving order to Firebase:', error);
     return { error };
   }
 };
 
-export const verifyCode = async (email: string, code: string) => {
+export const fetchOrders = async (): Promise<Order[]> => {
   try {
-    const codesRef = collection(db, 'verification_codes');
-    const q = query(codesRef, where('email', '==', email), where('code', '==', code), where('verified', '==', false));
-    const querySnapshot = await getDocs(q);
+    // Add timeout to prevent hanging (15 seconds)
+    const timeoutPromise = new Promise<never>((_, reject) =>
+      setTimeout(() => reject(new Error('Firebase timeout')), 15000)
+    );
 
-    if (querySnapshot.empty) {
-      return { valid: false };
-    }
+    const fetchPromise = (async () => {
+      const ordersRef = collection(db, 'orders');
+      const querySnapshot = await getDocs(ordersRef);
 
-    const docData = querySnapshot.docs[0];
-    const data = docData.data();
+      const orders = querySnapshot.docs.map(docSnap => docSnap.data()) as Order[];
 
-    // Check expiry
-    if (new Date(data.expires_at) < new Date()) {
-      return { valid: false };
-    }
+      // Sort by createdAt descending (newest first)
+      return orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+    })();
 
-    // Mark as verified
-    await setDoc(doc(db, 'verification_codes', docData.id), { ...data, verified: true }, { merge: true });
+    const orders = await Promise.race([fetchPromise, timeoutPromise]);
 
-    return { valid: true };
+    // Save to localStorage as backup
+    localStorage.setItem('maxios_orders', JSON.stringify(orders));
+
+    return orders;
   } catch (error) {
-    console.error('Error verifying code:', error);
-    return { valid: false };
+    console.error('Error fetching orders:', error);
+    // Try to load from localStorage backup
+    const cached = localStorage.getItem('maxios_orders');
+    if (cached) {
+      console.log('Using cached orders from localStorage');
+      return JSON.parse(cached);
+    }
+    return [];
   }
 };
+
+export const updateOrderStatus = async (orderNumber: string, status: Order['status']) => {
+  // Update in localStorage
+  const cached = localStorage.getItem('maxios_orders');
+  if (cached) {
+    const orders: Order[] = JSON.parse(cached);
+    const updated = orders.map(o => o.orderNumber === orderNumber ? { ...o, status } : o);
+    localStorage.setItem('maxios_orders', JSON.stringify(updated));
+  }
+
+  // Try Firebase
+  try {
+    const orderRef = doc(db, 'orders', orderNumber);
+    await setDoc(orderRef, { status }, { merge: true });
+    return { error: null };
+  } catch (error) {
+    console.error('Error updating order status:', error);
+    return { error: null };
+  }
+};
+
+export const deleteOrder = async (orderNumber: string) => {
+  // Remove from localStorage
+  const cached = localStorage.getItem('maxios_orders');
+  if (cached) {
+    const orders: Order[] = JSON.parse(cached);
+    const updated = orders.filter(o => o.orderNumber !== orderNumber);
+    localStorage.setItem('maxios_orders', JSON.stringify(updated));
+  }
+
+  // Try Firebase
+  try {
+    const orderRef = doc(db, 'orders', orderNumber);
+    await deleteDoc(orderRef);
+    return { error: null };
+  } catch (error) {
+    console.error('Error deleting order:', error);
+    return { error: null };
+  }
+};
+
