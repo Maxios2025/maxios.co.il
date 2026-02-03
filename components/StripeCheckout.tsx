@@ -27,6 +27,8 @@ interface CheckoutFormProps {
   theme: 'dark' | 'light';
   lang: 'en' | 'ar' | 'he';
   customerInfo: CustomerInfo;
+  cartItems: { id: string; name: string; qty: number; price: string }[];
+  totalAmount: number;
 }
 
 const CheckoutForm: React.FC<CheckoutFormProps> = ({
@@ -34,7 +36,9 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
   onError,
   theme,
   lang,
-  customerInfo
+  customerInfo,
+  cartItems,
+  totalAmount
 }) => {
   const stripe = useStripe();
   const elements = useElements();

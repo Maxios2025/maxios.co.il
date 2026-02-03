@@ -1,1 +1,27 @@
 /* MAXIOS Styles - Tailwind is loaded via CDN */
+
+/* Hebrew text - tight letter-spacing for readability */
+:lang(he),
+[lang="he"],
+html[lang="he"] * {
+  letter-spacing: -0.02em !important;
+}
+
+/* Hebrew headings - slightly tighter */
+:lang(he) h1, :lang(he) h2, :lang(he) h3, :lang(he) h4, :lang(he) h5, :lang(he) h6,
+[lang="he"] h1, [lang="he"] h2, [lang="he"] h3, [lang="he"] h4, [lang="he"] h5, [lang="he"] h6 {
+  letter-spacing: -0.03em !important;
+}
+
+/* Hebrew buttons and labels */
+:lang(he) button, :lang(he) a, :lang(he) span, :lang(he) p, :lang(he) label,
+[lang="he"] button, [lang="he"] a, [lang="he"] span, [lang="he"] p, [lang="he"] label {
+  letter-spacing: -0.02em !important;
+}
+
+/* Override any tracking-widest or tracking-wide classes for Hebrew */
+html[lang="he"] .tracking-widest,
+html[lang="he"] .tracking-wider,
+html[lang="he"] .tracking-wide {
+  letter-spacing: -0.01em !important;
+}

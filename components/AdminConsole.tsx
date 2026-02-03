@@ -1,9 +1,9 @@
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ShieldAlert, LogOut, Check, X, Clock, Ticket, Plus, Trash2, Edit2, Camera, Shield, Package, MessageCircle, Mail, Phone, User } from 'lucide-react';
+import { LogOut, Check, X, Clock, Ticket, Plus, Trash2, Edit2, Camera, Shield } from 'lucide-react';
 import { Language, PromoCode, Product } from '../App';
-import { saveProduct, deleteProductFromDB, fetchContactMessages, deleteContactMessage, ContactMessage, fetchOrders, updateOrderStatus, deleteOrder, Order } from '../lib/firebase';
+import { saveProduct, deleteProductFromDB } from '../lib/firebase';
 
 interface AdminConsoleProps {
   lang: Language;
@@ -15,36 +15,8 @@ interface AdminConsoleProps {
 }
 
 export const AdminConsole: React.FC<AdminConsoleProps> = ({ lang, onLogout, promoCodes, setPromoCodes, products, setProducts }) => {
-  const [activeTab, setActiveTab] = useState<'promocodes' | 'products' | 'orders' | 'messages'>('orders');
-  const [orders, setOrders] = useState<Order[]>([]);
-  const [selectedOrder, setSelectedOrder] = useState<Order | null>(null);
-  const [messages, setMessages] = useState<ContactMessage[]>([]);
-  const [selectedMessage, setSelectedMessage] = useState<ContactMessage | null>(null);
-  const [loadingMessages, setLoadingMessages] = useState(false);
-  const [loadingOrders, setLoadingOrders] = useState(false);
+  const [activeTab, setActiveTab] = useState<'promocodes' | 'products'>('promocodes');
 
-  // Load orders from Firebase
-  useEffect(() => {
-    const loadOrders = async () => {
-      setLoadingOrders(true);
-      const fetchedOrders = await fetchOrders();
-      setOrders(fetchedOrders);
-      setLoadingOrders(false);
-    };
-    loadOrders();
-  }, []);
-
-  // Load messages from Firebase
-  useEffect(() => {
-    const loadMessages = async () => {
-      setLoadingMessages(true);
-      const fetchedMessages = await fetchContactMessages();
-      setMessages(fetchedMessages);
-      setLoadingMessages(false);
-    };
-    loadMessages();
-  }, []);
-  
   // Promo Code States
   const [newCode, setNewCode] = useState("");
   const [newCodePercent, setNewCodePercent] = useState(10);
@@ -126,7 +98,6 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ lang, onLogout, prom
 
     if (result.error) {
       console.error('Firebase save failed:', result.error);
-      // Product saved locally, will sync on next load
     }
 
     // Auto-close after 3 seconds
@@ -140,13 +111,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ lang, onLogout, prom
 
   const deleteProduct = async (id: string) => {
     if (confirm("Permanently delete this unit from inventory?")) {
-      // Delete locally first (always works)
       const newProducts = products.filter(p => p.id !== id);
       setProducts(newProducts);
-      // Also save to localStorage as backup
       localStorage.setItem('maxios_products', JSON.stringify(newProducts));
 
-      // Try to delete from Firebase
       const result = await deleteProductFromDB(id);
       if (result.error) {
         console.error('Firebase delete failed:', result.error);
@@ -157,7 +125,6 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ lang, onLogout, prom
   const startEdit = (p: Product) => {
     setProductForm(p);
     setEditingProductId(p.id);
-    // Combine main image with additional images for preview
     const allImages = [p.img, ...(p.images || [])].filter(Boolean);
     setImagePreviews(allImages);
     setIsAddingProduct(true);
@@ -167,10 +134,8 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ lang, onLogout, prom
     const files = e.target.files;
     if (!files || files.length === 0) return;
 
-    // Process each file
     for (let i = 0; i < files.length; i++) {
       const file = files[i];
-      // Check file size (max 2MB for localStorage)
       if (file.size > 2 * 1024 * 1024) {
         alert(`Image "${file.name}" too large. Max 2MB allowed.`);
         continue;
@@ -179,7 +144,6 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ lang, onLogout, prom
       reader.onloadend = () => {
         const base64 = reader.result as string;
         setImagePreviews((prev: string[]) => [...prev, base64]);
-        // First image becomes the main image
         setProductForm((prev: Omit<Product, 'id'>) => {
           if (!prev.img) {
             return { ...prev, img: base64 };
@@ -191,7 +155,6 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ lang, onLogout, prom
       reader.readAsDataURL(file);
     }
 
-    // Reset file input to allow selecting the same file again
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
@@ -200,12 +163,10 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ lang, onLogout, prom
   const removeImage = (index: number) => {
     setImagePreviews((prev: string[]) => prev.filter((_: string, i: number) => i !== index));
     if (index === 0) {
-      // Removing main image - promote first additional image to main
       const newImages = [...(productForm.images || [])];
       const newMainImg = newImages.shift() || '';
       setProductForm((prev: Omit<Product, 'id'>) => ({ ...prev, img: newMainImg, images: newImages }));
     } else {
-      // Removing additional image
       setProductForm((prev: Omit<Product, 'id'>) => ({
         ...prev,
         images: (prev.images || []).filter((_: string, i: number) => i !== index - 1)
@@ -230,7 +191,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ lang, onLogout, prom
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-20 min-h-screen flex flex-col lg:flex-row gap-16 relative z-10">
-      {/* Sidebar - Fixed on desktop */}
+      {/* Sidebar */}
       <div className="w-full lg:w-72 space-y-8 lg:sticky lg:top-32 h-fit">
         <div className="flex items-center gap-4 text-orange-500 mb-12">
           <Shield size={40} className="animate-pulse" />
@@ -238,13 +199,11 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ lang, onLogout, prom
         </div>
         <nav className="space-y-2">
           {[
-            { id: 'orders', label: 'Orders', icon: Package },
-            { id: 'messages', label: 'Messages', icon: MessageCircle },
             { id: 'promocodes', label: 'Promo Codes', icon: Ticket },
           ].map(tab => (
-            <button 
-              key={tab.id} 
-              onClick={() => setActiveTab(tab.id as any)} 
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as any)}
               className={`w-full flex items-center gap-6 p-5 border text-[10px] font-black tracking-widest uppercase transition-all duration-300 ${activeTab === tab.id ? 'bg-orange-600 text-black border-orange-600 shadow-[0_0_30px_rgba(234,88,12,0.3)]' : 'text-white/40 border-white/5 hover:border-orange-500/30 hover:text-white'}`}
             >
               <tab.icon size={16} /> {tab.label}
@@ -252,188 +211,25 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ lang, onLogout, prom
           ))}
           <button onClick={onLogout} className="w-full flex items-center gap-6 p-5 border border-red-500/20 text-red-500 text-[10px] font-black tracking-widest uppercase mt-20 hover:bg-red-500 hover:text-white transition-all"><LogOut size={16} /> TERMINATE SESSION</button>
         </nav>
+
+        {/* Telegram Info */}
+        <div className="mt-8 p-4 border border-green-500/20 bg-green-500/5">
+          <p className="text-[10px] text-green-400 font-black uppercase tracking-widest mb-2">Orders & Messages</p>
+          <p className="text-white/50 text-xs">All orders and contact messages are sent directly to your Telegram channel for instant notifications.</p>
+        </div>
       </div>
 
       {/* Main Content Area */}
       <div className="flex-1 bg-black/40 backdrop-blur-3xl border border-orange-500/10 p-8 md:p-16 min-h-[700px] shadow-2xl relative overflow-hidden">
-        {/* Cinematic Backdrop Glow */}
         <div className="absolute inset-0 pointer-events-none overflow-hidden">
            <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-full h-full bg-orange-600/5 blur-[120px] rounded-full" />
         </div>
-        
+
         <AnimatePresence mode="wait">
-          {activeTab === 'orders' && (
-            <motion.div key="orders" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-8 relative z-10">
-              <div className="flex justify-between items-center">
-                <h3 className="text-4xl font-black italic text-white uppercase tracking-tighter">INCOMING ORDERS</h3>
-                <span className="px-4 py-2 bg-orange-600 text-black font-black text-sm">{orders.length} ORDERS</span>
-              </div>
-
-              {loadingOrders ? (
-                <div className="py-20 text-center">
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ repeat: Infinity, duration: 1 }}
-                    className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full mx-auto"
-                  />
-                  <p className="text-white/40 mt-4 uppercase text-xs tracking-widest">Loading orders...</p>
-                </div>
-              ) : orders.length === 0 ? (
-                <div className="py-20 text-center opacity-20 uppercase font-black tracking-widest text-xs border border-dashed border-white/10">
-                  No Orders Yet
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {orders.slice().reverse().map((order, idx) => (
-                    <div key={order.orderNumber} className="border border-white/10 bg-white/5 hover:border-orange-500/30 transition-all">
-                      {/* Order Header */}
-                      <div
-                        className="p-6 cursor-pointer"
-                        onClick={() => setSelectedOrder(selectedOrder?.orderNumber === order.orderNumber ? null : order)}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-orange-600 flex items-center justify-center">
-                              <Package size={24} className="text-black" />
-                            </div>
-                            <div>
-                              <p className="text-lg font-black italic text-white uppercase">{order.orderNumber}</p>
-                              <p className="text-[10px] text-white/40 font-black uppercase tracking-widest mt-1">
-                                {new Date(order.createdAt).toLocaleDateString()} • {new Date(order.createdAt).toLocaleTimeString()}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-2xl font-black text-orange-500">₪{order.total}</p>
-                            <span className={`inline-block px-3 py-1 text-[9px] font-black uppercase mt-2 ${
-                              order.status === 'pending' ? 'bg-yellow-500/20 text-yellow-500' :
-                              order.status === 'processing' ? 'bg-blue-500/20 text-blue-500' :
-                              order.status === 'shipped' ? 'bg-purple-500/20 text-purple-500' :
-                              order.status === 'delivered' ? 'bg-green-500/20 text-green-500' :
-                              'bg-red-500/20 text-red-500'
-                            }`}>
-                              {order.status}
-                            </span>
-                          </div>
-                        </div>
-                        <div className="mt-4 flex items-center gap-6 text-[10px] text-white/60 font-bold uppercase">
-                          <span>{order.customer.name}</span>
-                          <span>{order.customer.phone}</span>
-                          <span>{order.paymentMethod === 'cod' ? 'Cash on Delivery' : 'Credit Card'}</span>
-                        </div>
-                      </div>
-
-                      {/* Order Details (Expandable) */}
-                      <AnimatePresence>
-                        {selectedOrder?.orderNumber === order.orderNumber && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="overflow-hidden border-t border-white/10"
-                          >
-                            <div className="p-6 space-y-6 bg-black/30">
-                              {/* Customer Info */}
-                              <div className="grid grid-cols-2 gap-6">
-                                <div>
-                                  <p className="text-[10px] text-orange-500 font-black uppercase tracking-widest mb-2">Customer</p>
-                                  <p className="text-white font-bold">{order.customer.name}</p>
-                                  <p className="text-white/60 text-sm">{order.customer.email}</p>
-                                  <p className="text-white/60 text-sm">{order.customer.phone}</p>
-                                </div>
-                                <div>
-                                  <p className="text-[10px] text-orange-500 font-black uppercase tracking-widest mb-2">Shipping Address</p>
-                                  <p className="text-white font-bold">{order.customer.street}</p>
-                                  <p className="text-white/60 text-sm">{order.customer.city} {order.customer.zip}</p>
-                                </div>
-                              </div>
-
-                              {/* Items */}
-                              <div>
-                                <p className="text-[10px] text-orange-500 font-black uppercase tracking-widest mb-3">Items</p>
-                                <div className="space-y-2">
-                                  {order.items.map((item, i) => (
-                                    <div key={i} className="flex justify-between items-center p-3 bg-white/5">
-                                      <span className="text-white font-medium">{item.name} <span className="text-white/40">x{item.qty}</span></span>
-                                      <span className="text-white font-bold">{item.price}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              </div>
-
-                              {/* Totals */}
-                              <div className="border-t border-white/10 pt-4 space-y-2">
-                                <div className="flex justify-between text-sm">
-                                  <span className="text-white/60">Subtotal</span>
-                                  <span className="text-white">₪{order.subtotal}</span>
-                                </div>
-                                {order.promoCode && (
-                                  <div className="flex justify-between text-sm">
-                                    <span className="text-green-400">Discount ({order.promoCode})</span>
-                                    <span className="text-green-400">-₪{order.discount}</span>
-                                  </div>
-                                )}
-                                <div className="flex justify-between text-lg font-black">
-                                  <span className="text-white">Total</span>
-                                  <span className="text-orange-500">₪{order.total}</span>
-                                </div>
-                              </div>
-
-                              {/* Status Update */}
-                              <div className="flex gap-2 pt-4">
-                                {['pending', 'processing', 'shipped', 'delivered'].map(status => (
-                                  <button
-                                    key={status}
-                                    onClick={async () => {
-                                      const updatedOrders = orders.map(o =>
-                                        o.orderNumber === order.orderNumber ? {...o, status: status as Order['status']} : o
-                                      );
-                                      setOrders(updatedOrders);
-                                      setSelectedOrder({...order, status: status as Order['status']});
-                                      await updateOrderStatus(order.orderNumber, status as Order['status']);
-                                    }}
-                                    className={`px-4 py-2 text-[9px] font-black uppercase transition-all ${
-                                      order.status === status
-                                        ? 'bg-orange-600 text-black'
-                                        : 'bg-white/5 text-white/40 hover:bg-white/10'
-                                    }`}
-                                  >
-                                    {status}
-                                  </button>
-                                ))}
-                              </div>
-
-                              {/* Delete Order */}
-                              <div className="pt-4 border-t border-white/10 mt-4">
-                                <button
-                                  onClick={async () => {
-                                    if (confirm('Are you sure you want to delete this order? This action cannot be undone.')) {
-                                      const updatedOrders = orders.filter(o => o.orderNumber !== order.orderNumber);
-                                      setOrders(updatedOrders);
-                                      setSelectedOrder(null);
-                                      await deleteOrder(order.orderNumber);
-                                    }
-                                  }}
-                                  className="px-6 py-3 bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500 hover:text-white text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
-                                >
-                                  <Trash2 size={14} /> DELETE ORDER
-                                </button>
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          )}
-
           {activeTab === 'promocodes' && (
             <motion.div key="codes" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-12 relative z-10">
               <h3 className="text-4xl font-black italic text-white uppercase tracking-tighter">PROMO LOGIC ENGINE</h3>
-              
+
               <div className="bg-white/5 border border-white/10 p-8 space-y-6">
                 <h4 className="text-[10px] font-black text-orange-500 uppercase tracking-widest">Generate New Logic</h4>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -478,132 +274,6 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ lang, onLogout, prom
             </motion.div>
           )}
 
-          {activeTab === 'messages' && (
-            <motion.div key="messages" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-8 relative z-10">
-              <div className="flex justify-between items-center">
-                <h3 className="text-4xl font-black italic text-white uppercase tracking-tighter">INCOMING TRANSMISSIONS</h3>
-                <span className="px-4 py-2 bg-orange-600 text-black font-black text-sm">{messages.length} MESSAGES</span>
-              </div>
-
-              {loadingMessages ? (
-                <div className="py-20 text-center">
-                  <motion.div
-                    animate={{ rotate: 360 }}
-                    transition={{ repeat: Infinity, duration: 1 }}
-                    className="w-8 h-8 border-2 border-orange-500 border-t-transparent rounded-full mx-auto"
-                  />
-                  <p className="text-white/40 mt-4 uppercase text-xs tracking-widest">Loading messages...</p>
-                </div>
-              ) : messages.length === 0 ? (
-                <div className="py-20 text-center opacity-20 uppercase font-black tracking-widest text-xs border border-dashed border-white/10">
-                  No Messages Yet
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {messages.map((msg) => (
-                    <div key={msg.id} className="border border-white/10 bg-white/5 hover:border-orange-500/30 transition-all">
-                      {/* Message Header */}
-                      <div
-                        className="p-6 cursor-pointer"
-                        onClick={() => setSelectedMessage(selectedMessage?.id === msg.id ? null : msg)}
-                      >
-                        <div className="flex justify-between items-start">
-                          <div className="flex items-center gap-4">
-                            <div className="w-12 h-12 bg-orange-600 flex items-center justify-center">
-                              <Mail size={24} className="text-black" />
-                            </div>
-                            <div>
-                              <p className="text-lg font-black italic text-white uppercase">{msg.name}</p>
-                              <p className="text-[10px] text-white/40 font-black uppercase tracking-widest mt-1">
-                                {new Date(msg.created_at).toLocaleDateString()} • {new Date(msg.created_at).toLocaleTimeString()}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="text-sm text-white/60">{msg.email}</p>
-                            {msg.phone && <p className="text-xs text-white/40">{msg.phone}</p>}
-                          </div>
-                        </div>
-                        <p className="mt-4 text-white/60 text-sm line-clamp-2">{msg.message}</p>
-                      </div>
-
-                      {/* Message Details (Expandable) */}
-                      <AnimatePresence>
-                        {selectedMessage?.id === msg.id && (
-                          <motion.div
-                            initial={{ height: 0, opacity: 0 }}
-                            animate={{ height: 'auto', opacity: 1 }}
-                            exit={{ height: 0, opacity: 0 }}
-                            className="overflow-hidden border-t border-white/10"
-                          >
-                            <div className="p-6 space-y-6 bg-black/30">
-                              {/* Contact Info */}
-                              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                                <div className="flex items-center gap-3">
-                                  <User size={18} className="text-orange-500" />
-                                  <div>
-                                    <p className="text-[10px] text-white/40 uppercase tracking-widest">Name</p>
-                                    <p className="text-white font-bold">{msg.name}</p>
-                                  </div>
-                                </div>
-                                <div className="flex items-center gap-3">
-                                  <Mail size={18} className="text-orange-500" />
-                                  <div>
-                                    <p className="text-[10px] text-white/40 uppercase tracking-widest">Email</p>
-                                    <a href={`mailto:${msg.email}`} className="text-white font-bold hover:text-orange-500 transition-colors">{msg.email}</a>
-                                  </div>
-                                </div>
-                                {msg.phone && (
-                                  <div className="flex items-center gap-3">
-                                    <Phone size={18} className="text-orange-500" />
-                                    <div>
-                                      <p className="text-[10px] text-white/40 uppercase tracking-widest">Phone</p>
-                                      <a href={`tel:${msg.phone}`} className="text-white font-bold hover:text-orange-500 transition-colors">{msg.phone}</a>
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-
-                              {/* Full Message */}
-                              <div>
-                                <p className="text-[10px] text-orange-500 font-black uppercase tracking-widest mb-3">Message</p>
-                                <div className="p-4 bg-white/5 border border-white/10">
-                                  <p className="text-white whitespace-pre-wrap">{msg.message}</p>
-                                </div>
-                              </div>
-
-                              {/* Actions */}
-                              <div className="flex gap-4 pt-4 border-t border-white/10">
-                                <a
-                                  href={`mailto:${msg.email}?subject=Re: Your message to MAXIOS`}
-                                  className="px-6 py-3 bg-orange-600 text-black font-black text-[10px] uppercase tracking-widest hover:bg-orange-500 transition-all flex items-center gap-2"
-                                >
-                                  <Mail size={14} /> REPLY VIA EMAIL
-                                </a>
-                                <button
-                                  onClick={async () => {
-                                    if (confirm('Are you sure you want to delete this message?')) {
-                                      await deleteContactMessage(msg.id);
-                                      setMessages(messages.filter(m => m.id !== msg.id));
-                                      setSelectedMessage(null);
-                                    }
-                                  }}
-                                  className="px-6 py-3 bg-red-500/10 border border-red-500/30 text-red-500 hover:bg-red-500 hover:text-white text-[10px] font-black uppercase tracking-widest transition-all flex items-center gap-2"
-                                >
-                                  <Trash2 size={14} /> DELETE
-                                </button>
-                              </div>
-                            </div>
-                          </motion.div>
-                        )}
-                      </AnimatePresence>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </motion.div>
-          )}
-
           {activeTab === 'products' && (
             <motion.div key="products" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-12 relative z-10">
               <div className="flex justify-between items-center">
@@ -620,11 +290,9 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ lang, onLogout, prom
                     <button onClick={resetProductForm} className="text-white/20 hover:text-white transition-colors"><X size={24}/></button>
                   </div>
 
-                  {/* Image Upload Section */}
                   <div className="space-y-4">
                     <label className="text-[10px] font-black text-white/20 uppercase flex items-center gap-2"><Camera size={12}/> PRODUCT IMAGES (Multiple)</label>
                     <div className="flex flex-wrap gap-4 items-start">
-                      {/* Existing Images */}
                       {imagePreviews.map((img, index) => (
                         <div key={index} className="relative w-32 h-32 border-2 border-white/20 overflow-hidden group">
                           <img src={img} className="w-full h-full object-cover" />
@@ -639,7 +307,6 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ lang, onLogout, prom
                           </button>
                         </div>
                       ))}
-                      {/* Add New Image Button */}
                       <div
                         onClick={() => fileInputRef.current?.click()}
                         className="w-32 h-32 border-2 border-dashed border-white/20 hover:border-orange-500 flex flex-col items-center justify-center cursor-pointer transition-all bg-black/50 group"
@@ -680,7 +347,6 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ lang, onLogout, prom
                     </div>
                   </div>
 
-                  {/* Description Fields */}
                   <div className="space-y-4">
                     <label className="text-[10px] font-black text-white/20 uppercase">Product Description (EN / AR / HE)</label>
                     <textarea

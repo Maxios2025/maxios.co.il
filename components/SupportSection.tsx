@@ -2,13 +2,16 @@
 import React from 'react';
 import { motion } from 'framer-motion';
 import { Language } from '../App';
-import { RefreshCcw, Wrench, Package, ShieldCheck, HelpCircle } from 'lucide-react';
+import { Wrench, Package, ShieldCheck, HelpCircle, MessageCircle } from 'lucide-react';
 
 interface SupportSectionProps {
   lang: Language;
+  onGoToContact: () => void;
 }
 
-export const SupportSection: React.FC<SupportSectionProps> = ({ lang }) => {
+export const SupportSection: React.FC<SupportSectionProps> = ({ lang, onGoToContact }) => {
+  const isRTL = lang === 'he' || lang === 'ar';
+
   const t = {
     en: {
       title: "TECHNICAL ECOSYSTEM",
@@ -16,7 +19,6 @@ export const SupportSection: React.FC<SupportSectionProps> = ({ lang }) => {
       aiTitle: "AI PROTOCOL: FIRST RESPONSE",
       aiSub: "Engage our neural support node for instantaneous diagnostics.",
       categories: [
-        { id: 'refund', icon: RefreshCcw, title: "REFUND PROTOCOL", desc: "Initiate return and credit logic." },
         { id: 'tech', icon: Wrench, title: "HARDWARE ISSUES", desc: "Diagnose suction or battery drift." },
         { id: 'items', icon: Package, title: "ITEM INQUIRY", desc: "Specifications and parts compatibility." },
         { id: 'warranty', icon: ShieldCheck, title: "WARRANTY CLAIM", desc: "Elite coverage activation." },
@@ -24,16 +26,15 @@ export const SupportSection: React.FC<SupportSectionProps> = ({ lang }) => {
       ]
     },
     ar: {
-      title: "النظام البيئي التقني",
-      sub: "حل الأعطال المادية، تتبع الخدمات اللوجستية، أو طلب تدخل تقني.",
-      aiTitle: "بروتوكول الذكاء الاصطناعي: الاستجابة الأولى",
-      aiSub: "تواصل مع عقدة الدعم العصبية للتشخيص الفوري.",
+      title: "مركز الدعم الفني",
+      sub: "حل المشاكل التقنية، تتبع الشحنات، أو طلب المساعدة.",
+      aiTitle: "المساعد الذكي: الدعم الفوري",
+      aiSub: "تواصل مع فريق الدعم للمساعدة الفورية.",
       categories: [
-        { id: 'refund', icon: RefreshCcw, title: "بروتوكول الاسترداد", desc: "بدء عملية الإرجاع والرصيد." },
-        { id: 'tech', icon: Wrench, title: "مشاكل الأجهزة", desc: "تشخيص الشفط أو البطارية." },
-        { id: 'items', icon: Package, title: "استفسار عن العناصر", desc: "المواصفات وتوافق الأجزاء." },
-        { id: 'warranty', icon: ShieldCheck, title: "مطالبة بالضمان", desc: "تفعيل التغطية النخبوية." },
-        { id: 'other', icon: HelpCircle, title: "عام", desc: "جميع الشذوذات الأخرى غير المحددة." }
+        { id: 'tech', icon: Wrench, title: "مشاكل تقنية", desc: "مشاكل الشفط أو البطارية." },
+        { id: 'items', icon: Package, title: "استفسار عن المنتجات", desc: "المواصفات وقطع الغيار." },
+        { id: 'warranty', icon: ShieldCheck, title: "طلب الضمان", desc: "تفعيل ضمان المنتج." },
+        { id: 'other', icon: HelpCircle, title: "استفسارات أخرى", desc: "أي أسئلة أو استفسارات أخرى." }
       ]
     },
     he: {
@@ -42,7 +43,6 @@ export const SupportSection: React.FC<SupportSectionProps> = ({ lang }) => {
       aiTitle: "פרוטוקול AI: תגובה ראשונה",
       aiSub: "צור קשר עם צומת התמיכה העצבית לאבחון מיידי.",
       categories: [
-        { id: 'refund', icon: RefreshCcw, title: "פרוטוקול החזר", desc: "הפעל לוגיקה של החזרה וזיכוי." },
         { id: 'tech', icon: Wrench, title: "בעיות חומרה", desc: "אבחן ירידה בשאיבה או בסוללה." },
         { id: 'items', icon: Package, title: "שאילתת פריטים", desc: "מפרטים ותאימות חלקים." },
         { id: 'warranty', icon: ShieldCheck, title: "תביעת אחריות", desc: "הפעלת כיסוי עילית." },
@@ -54,12 +54,16 @@ export const SupportSection: React.FC<SupportSectionProps> = ({ lang }) => {
   return (
     <section className="max-w-7xl mx-auto px-6 py-20 space-y-24">
       <div className="space-y-6 text-center">
-        <h2 className="text-white/20 text-xs tracking-[1em] uppercase">{lang === 'en' ? 'COMMAND CENTER' : 'مركز القيادة'}</h2>
-        <h3 className="text-6xl md:text-9xl font-black italic tracking-tighter text-white">{t.title}</h3>
-        <p className="text-xl text-white/40 font-light max-w-2xl mx-auto">{t.sub}</p>
+        <h2 className={`text-white/20 text-xs tracking-[1em] uppercase ${lang === 'he' ? 'font-hebrew' : lang === 'ar' ? 'font-arabic' : ''}`}>
+          {lang === 'en' ? 'COMMAND CENTER' : lang === 'he' ? 'מרכז פיקוד' : 'مركز القيادة'}
+        </h2>
+        <h3 className={`text-6xl md:text-9xl font-black tracking-tighter text-white ${
+          lang === 'he' ? 'font-hero-hebrew' : lang === 'ar' ? 'font-hero-arabic italic' : 'italic'
+        }`}>{t.title}</h3>
+        <p className={`text-xl text-white/40 font-light max-w-2xl mx-auto ${lang === 'he' ? 'font-hebrew' : lang === 'ar' ? 'font-arabic' : ''}`}>{t.sub}</p>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
         {t.categories.map((cat, i) => (
           <motion.div
             key={cat.id}
@@ -67,34 +71,25 @@ export const SupportSection: React.FC<SupportSectionProps> = ({ lang }) => {
             whileInView={{ opacity: 1, y: 0 }}
             transition={{ delay: i * 0.1 }}
             viewport={{ once: true }}
-            className="group p-10 bg-zinc-950 border border-white/5 hover:border-orange-500/50 transition-all relative overflow-hidden"
+            className="group p-8 bg-zinc-950 border border-white/5 hover:border-orange-500/50 transition-all cursor-pointer"
+            onClick={onGoToContact}
           >
-            <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-20 transition-opacity">
-              <cat.icon size={120} />
+            <div className={`flex items-start gap-4 mb-4 ${isRTL ? 'flex-row-reverse text-right' : ''}`}>
+              <div className="p-4 bg-orange-500/10 border border-orange-500/20 shrink-0">
+                <cat.icon size={28} className="text-orange-500" />
+              </div>
+              <div className={`flex-1 ${lang === 'he' ? 'font-hebrew' : lang === 'ar' ? 'font-arabic' : ''}`}>
+                <h4 className={`text-xl md:text-2xl font-bold text-white ${lang === 'he' ? 'font-hero-hebrew' : ''}`}>{cat.title}</h4>
+                <p className="text-white/50 text-base md:text-lg mt-2 leading-relaxed">{cat.desc}</p>
+              </div>
             </div>
-            <cat.icon size={40} className="text-orange-500 mb-8" />
-            <h4 className="text-2xl font-black italic tracking-tighter text-white mb-4 uppercase">{cat.title}</h4>
-            <p className="text-white/40 text-sm leading-relaxed">{cat.desc}</p>
-            <button className="mt-8 text-orange-500 font-black tracking-widest text-[10px] uppercase group-hover:translate-x-2 transition-transform">
-              {lang === 'en' ? 'OPEN TICKET' : lang === 'ar' ? 'افتح تذكرة' : 'פתח כרטיס'} →
-            </button>
+            <div
+              className={`mt-4 text-orange-500 font-bold tracking-wide text-sm uppercase transition-transform flex items-center gap-2 ${isRTL ? 'flex-row-reverse mr-auto group-hover:-translate-x-2' : 'ml-auto group-hover:translate-x-2'}`}
+            >
+              <MessageCircle size={20} /> {isRTL ? '←' : '→'}
+            </div>
           </motion.div>
         ))}
-      </div>
-
-      <div className="p-12 md:p-24 bg-orange-600/5 border border-orange-600/20 relative overflow-hidden text-center space-y-8">
-        <div className="absolute top-0 left-0 w-full h-1 bg-gradient-to-r from-transparent via-orange-500 to-transparent" />
-        <h4 className="text-3xl md:text-5xl font-black italic tracking-tighter text-white uppercase">{t.aiTitle}</h4>
-        <p className="text-lg text-white/60 max-w-xl mx-auto">{t.aiSub}</p>
-        <button 
-           onClick={() => {
-             const chatBtn = document.querySelector('#support-chat-trigger') as HTMLButtonElement;
-             chatBtn?.click();
-           }}
-           className="px-16 py-6 bg-white text-black font-black uppercase tracking-tighter hover:bg-orange-600 hover:text-white transition-all text-sm"
-        >
-          {lang === 'en' ? 'ENGAGE CHATBOT' : 'تفعيل الروبوت'}
-        </button>
       </div>
     </section>
   );

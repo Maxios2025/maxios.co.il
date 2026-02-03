@@ -8,7 +8,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;900&family=Noto+Sans+Arabic:wght@400;700;900&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;900&family=Noto+Sans+Arabic:wght@400;700;900&family=Cairo:wght@700;800;900&family=Tajawal:wght@700;800;900&family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&display=swap" rel="stylesheet">
     <style>
         body {
             margin: 0;
@@ -18,8 +18,76 @@
             font-family: 'Inter', sans-serif;
             overflow-x: hidden;
         }
+        /* Arabic text styling */
         .font-arabic {
-            font-family: 'Noto Sans Arabic', 'Inter', sans-serif;
+            font-family: 'Cairo', 'Tajawal', 'Noto Sans Arabic', sans-serif;
+            font-weight: 700;
+        }
+        /* Hebrew text styling - IBM Plex Sans Hebrew for crisp, readable text */
+        .font-hebrew {
+            font-family: 'IBM Plex Sans Hebrew', 'Arial Hebrew', sans-serif;
+            font-weight: 700;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        /* Hero headlines - language specific */
+        .font-hero {
+            font-family: 'Inter', sans-serif;
+            font-weight: 900;
+        }
+        .font-hero-hebrew {
+            font-family: 'IBM Plex Sans Hebrew', 'Arial Hebrew', sans-serif;
+            font-weight: 700;
+            letter-spacing: 0;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        .font-hero-arabic {
+            font-family: 'Cairo', 'Tajawal', sans-serif;
+            font-weight: 800;
+        }
+        .hero-glow {
+            text-shadow: 0 0 30px #FF6B35, 0 0 60px #FF6B3580, 0 0 90px #FF6B3540;
+        }
+        /* Enhanced Hebrew headline styles */
+        .hebrew-headline {
+            font-family: 'IBM Plex Sans Hebrew', 'Arial Hebrew', sans-serif;
+            font-weight: 700;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        /* Hebrew body text - slightly lighter weight for readability */
+        .hebrew-body {
+            font-family: 'IBM Plex Sans Hebrew', 'Arial Hebrew', sans-serif;
+            font-weight: 500;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        /* Hebrew small text - ensure legibility at small sizes */
+        .hebrew-small {
+            font-family: 'IBM Plex Sans Hebrew', 'Arial Hebrew', sans-serif;
+            font-weight: 600;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+        }
+        /* Global Hebrew text override when lang=he */
+        [lang="he"] body,
+        [dir="rtl"]:lang(he),
+        html[lang="he"] {
+            font-family: 'IBM Plex Sans Hebrew', 'Arial Hebrew', sans-serif;
+        }
+        /* Hebrew letter-spacing - tight for readability */
+        html[lang="he"] * {
+            letter-spacing: -0.02em !important;
+        }
+        html[lang="he"] h1, html[lang="he"] h2, html[lang="he"] h3,
+        html[lang="he"] h4, html[lang="he"] h5, html[lang="he"] h6 {
+            letter-spacing: -0.03em !important;
+        }
+        html[lang="he"] .tracking-widest,
+        html[lang="he"] .tracking-wider,
+        html[lang="he"] .tracking-wide {
+            letter-spacing: -0.01em !important;
         }
         /* Hide scrollbar for cinematic feel during loading */
         .no-scroll {

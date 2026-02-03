@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { User, Package, CreditCard, LogOut, Plus, Shield, MapPin, Phone, Mail, Edit2, Check, X, Trash2, Banknote } from 'lucide-react';
+import { User, Package, CreditCard, LogOut, Plus, Shield, MapPin, Phone, Mail, Edit2, Check, X, Trash2, Banknote, Settings, Bell, Lock, Globe, Eye, EyeOff, AlertTriangle } from 'lucide-react';
 import { Language, UserProfile } from '../App';
 
 interface PaymentMethod {
@@ -20,13 +20,29 @@ interface AccountSectionProps {
 }
 
 export const AccountSection: React.FC<AccountSectionProps> = ({ lang, user, setUser, onLogout }) => {
-  const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'billing'>('profile');
+  const [activeTab, setActiveTab] = useState<'profile' | 'orders' | 'billing' | 'settings'>('profile');
   const [isEditing, setIsEditing] = useState(false);
   const [editData, setEditData] = useState<UserProfile>({ ...user });
   const [isAddingPayment, setIsAddingPayment] = useState(false);
   const [newCardNumber, setNewCardNumber] = useState('');
   const [newCardExpiry, setNewCardExpiry] = useState('');
   const [newCardName, setNewCardName] = useState('');
+
+  // Settings state
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [currentPassword, setCurrentPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [passwordSuccess, setPasswordSuccess] = useState(false);
+  const [notifications, setNotifications] = useState({
+    email: true,
+    sms: false,
+    promotions: true,
+    orderUpdates: true
+  });
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
 
   // Mock saved payment methods (in real app, this would come from user profile/database)
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([
@@ -92,28 +108,81 @@ export const AccountSection: React.FC<AccountSectionProps> = ({ lang, user, setU
     setPaymentMethods(paymentMethods.map(m => ({ ...m, isDefault: m.id === id })));
   };
 
+  const handlePasswordChange = () => {
+    setPasswordError('');
+    setPasswordSuccess(false);
+
+    // Validate
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setPasswordError(lang === 'en' ? 'All fields are required' : lang === 'he' ? 'כל השדות נדרשים' : 'جميع الحقول مطلوبة');
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      setPasswordError(lang === 'en' ? 'Passwords do not match' : lang === 'he' ? 'הסיסמאות אינן תואמות' : 'كلمات المرور غير متطابقة');
+      return;
+    }
+
+    const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/;
+    if (!passRegex.test(newPassword)) {
+      setPasswordError(lang === 'en' ? 'Password must be 8+ chars with uppercase, lowercase, and numbers' : lang === 'he' ? 'סיסמה חייבת להכיל 8+ תווים עם אותיות גדולות, קטנות ומספרים' : 'يجب أن تحتوي كلمة المرور على 8+ أحرف مع أحرف كبيرة وصغيرة وأرقام');
+      return;
+    }
+
+    // In real app, this would call Firebase auth to update password
+    setPasswordSuccess(true);
+    setCurrentPassword('');
+    setNewPassword('');
+    setConfirmPassword('');
+    setTimeout(() => setPasswordSuccess(false), 3000);
+  };
+
+  const handleDeleteAccount = () => {
+    // In real app, this would delete the account from Firebase
+    onLogout();
+  };
+
   const t = {
     en: {
       title: "IDENTITY NODE", profile: "PROFILE INFO", orders: "LOGISTICS HISTORY", billing: "PAYMENT VAULT",
-      logout: "TERMINATE SESSION", addPayment: "ADD NEW PROTOCOL", noOrders: "NO DEPLOYMENTS RECORDED",
+      settings: "SETTINGS", logout: "TERMINATE SESSION", addPayment: "ADD NEW PROTOCOL", noOrders: "NO DEPLOYMENTS RECORDED",
       verified: "AUTHENTICATED USER", shipTo: "SHIPPING HUB", edit: "RECONFIGURE IDENTITY", save: "SAVE CHANGES",
       cardNumber: "CARD NUMBER", cardName: "CARDHOLDER NAME", expiry: "EXPIRY DATE", addCard: "ADD CARD",
       cancel: "CANCEL", default: "DEFAULT", setDefault: "SET AS DEFAULT", remove: "REMOVE",
-      cashOnDelivery: "CASH ON DELIVERY", cardEnding: "CARD ENDING IN"
+      cashOnDelivery: "CASH ON DELIVERY", cardEnding: "CARD ENDING IN",
+      // Settings translations
+      changePassword: "CHANGE PASSWORD", currentPassword: "CURRENT PASSWORD", newPassword: "NEW PASSWORD",
+      confirmPassword: "CONFIRM PASSWORD", updatePassword: "UPDATE PASSWORD", passwordChanged: "PASSWORD UPDATED SUCCESSFULLY",
+      notifications: "NOTIFICATIONS", emailNotif: "EMAIL NOTIFICATIONS", smsNotif: "SMS NOTIFICATIONS",
+      promoNotif: "PROMOTIONAL UPDATES", orderNotif: "ORDER STATUS UPDATES",
+      dangerZone: "DANGER ZONE", deleteAccount: "DELETE ACCOUNT", deleteWarning: "This action cannot be undone. All your data will be permanently removed.",
+      confirmDelete: "YES, DELETE MY ACCOUNT", cancelDelete: "CANCEL"
     },
     ar: {
       title: "عقدة الهوية", profile: "معلومات الملف", orders: "سجل اللوجستيات", billing: "خزنة الدفع",
-      logout: "خروج", edit: "تعديل", save: "حفظ", addPayment: "إضافة طريقة دفع", noOrders: "لا توجد طلبات",
+      settings: "الإعدادات", logout: "خروج", edit: "تعديل", save: "حفظ", addPayment: "إضافة طريقة دفع", noOrders: "لا توجد طلبات",
       verified: "مستخدم موثق", shipTo: "عنوان الشحن", cardNumber: "رقم البطاقة", cardName: "اسم حامل البطاقة",
       expiry: "تاريخ الانتهاء", addCard: "إضافة بطاقة", cancel: "إلغاء", default: "افتراضي",
-      setDefault: "تعيين كافتراضي", remove: "حذف", cashOnDelivery: "الدفع عند الاستلام", cardEnding: "بطاقة تنتهي بـ"
+      setDefault: "تعيين كافتراضي", remove: "حذف", cashOnDelivery: "الدفع عند الاستلام", cardEnding: "بطاقة تنتهي بـ",
+      changePassword: "تغيير كلمة المرور", currentPassword: "كلمة المرور الحالية", newPassword: "كلمة المرور الجديدة",
+      confirmPassword: "تأكيد كلمة المرور", updatePassword: "تحديث كلمة المرور", passwordChanged: "تم تحديث كلمة المرور بنجاح",
+      notifications: "الإشعارات", emailNotif: "إشعارات البريد الإلكتروني", smsNotif: "إشعارات الرسائل القصيرة",
+      promoNotif: "تحديثات ترويجية", orderNotif: "تحديثات حالة الطلب",
+      dangerZone: "منطقة الخطر", deleteAccount: "حذف الحساب", deleteWarning: "هذا الإجراء لا يمكن التراجع عنه. ستتم إزالة جميع بياناتك بشكل دائم.",
+      confirmDelete: "نعم، احذف حسابي", cancelDelete: "إلغاء"
     },
     he: {
       title: "צומת זהות", profile: "מידע פרופיל", orders: "היסטוריה", billing: "כספת תשלום",
-      logout: "יציאה", edit: "ערוך", save: "שמור", addPayment: "הוסף אמצעי תשלום", noOrders: "אין הזמנות",
+      settings: "הגדרות", logout: "יציאה", edit: "ערוך", save: "שמור", addPayment: "הוסף אמצעי תשלום", noOrders: "אין הזמנות",
       verified: "משתמש מאומת", shipTo: "כתובת משלוח", cardNumber: "מספר כרטיס", cardName: "שם בעל הכרטיס",
       expiry: "תוקף", addCard: "הוסף כרטיס", cancel: "ביטול", default: "ברירת מחדל",
-      setDefault: "הגדר כברירת מחדל", remove: "הסר", cashOnDelivery: "תשלום במזומן בעת המסירה", cardEnding: "כרטיס המסתיים ב"
+      setDefault: "הגדר כברירת מחדל", remove: "הסר", cashOnDelivery: "תשלום במזומן בעת המסירה", cardEnding: "כרטיס המסתיים ב",
+      changePassword: "שינוי סיסמה", currentPassword: "סיסמה נוכחית", newPassword: "סיסמה חדשה",
+      confirmPassword: "אימות סיסמה", updatePassword: "עדכן סיסמה", passwordChanged: "הסיסמה עודכנה בהצלחה",
+      notifications: "התראות", emailNotif: "התראות אימייל", smsNotif: "התראות SMS",
+      promoNotif: "עדכונים שיווקיים", orderNotif: "עדכוני סטטוס הזמנה",
+      dangerZone: "אזור סכנה", deleteAccount: "מחק חשבון", deleteWarning: "פעולה זו אינה ניתנת לביטול. כל הנתונים שלך יימחקו לצמיתות.",
+      confirmDelete: "כן, מחק את החשבון שלי", cancelDelete: "ביטול"
     }
   }[lang];
 
@@ -126,7 +195,12 @@ export const AccountSection: React.FC<AccountSectionProps> = ({ lang, user, setU
             <div className="flex items-center gap-2 text-orange-500 text-[10px] font-black tracking-widest uppercase"><Shield size={12} /> {t.verified}</div>
           </div>
           <nav className="space-y-4">
-            {[ { id: 'profile', label: t.profile, icon: User }, { id: 'orders', label: t.orders, icon: Package }, { id: 'billing', label: (t as any).billing, icon: CreditCard } ].map((tab) => (
+            {[
+              { id: 'profile', label: t.profile, icon: User },
+              { id: 'orders', label: t.orders, icon: Package },
+              { id: 'billing', label: (t as any).billing, icon: CreditCard },
+              { id: 'settings', label: (t as any).settings, icon: Settings }
+            ].map((tab) => (
               <button key={tab.id} onClick={() => setActiveTab(tab.id as any)} className={`w-full flex items-center gap-6 p-6 border transition-all uppercase tracking-widest text-xs font-black ${activeTab === tab.id ? 'bg-white text-black border-white' : 'bg-transparent text-white/40 border-white/5 hover:border-white/20'}`}>
                 <tab.icon size={20} />{tab.label}
               </button>
@@ -298,6 +372,156 @@ export const AccountSection: React.FC<AccountSectionProps> = ({ lang, user, setU
                       </motion.div>
                     ))
                   )}
+                </div>
+              </motion.div>
+            )}
+
+            {activeTab === 'settings' && (
+              <motion.div key="settings" initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} className="space-y-12">
+                {/* Change Password Section */}
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4">
+                    <Lock className="text-orange-500" size={24} />
+                    <h3 className="text-2xl font-black italic text-white uppercase tracking-tighter">{(t as any).changePassword}</h3>
+                  </div>
+
+                  <div className="bg-white/5 border border-white/10 p-6 space-y-4">
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black tracking-widest text-white/40 uppercase block">{(t as any).currentPassword}</label>
+                      <div className="relative">
+                        <input
+                          type={showCurrentPassword ? "text" : "password"}
+                          value={currentPassword}
+                          onChange={e => setCurrentPassword(e.target.value)}
+                          className="w-full bg-black/40 border border-white/10 p-4 pr-12 text-white text-sm outline-none focus:border-orange-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowCurrentPassword(!showCurrentPassword)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-orange-500"
+                        >
+                          {showCurrentPassword ? <EyeOff size={16}/> : <Eye size={16}/>}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black tracking-widest text-white/40 uppercase block">{(t as any).newPassword}</label>
+                      <div className="relative">
+                        <input
+                          type={showNewPassword ? "text" : "password"}
+                          value={newPassword}
+                          onChange={e => setNewPassword(e.target.value)}
+                          className="w-full bg-black/40 border border-white/10 p-4 pr-12 text-white text-sm outline-none focus:border-orange-500"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => setShowNewPassword(!showNewPassword)}
+                          className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-orange-500"
+                        >
+                          {showNewPassword ? <EyeOff size={16}/> : <Eye size={16}/>}
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      <label className="text-[10px] font-black tracking-widest text-white/40 uppercase block">{(t as any).confirmPassword}</label>
+                      <input
+                        type="password"
+                        value={confirmPassword}
+                        onChange={e => setConfirmPassword(e.target.value)}
+                        className="w-full bg-black/40 border border-white/10 p-4 text-white text-sm outline-none focus:border-orange-500"
+                      />
+                    </div>
+
+                    {passwordError && (
+                      <div className="p-4 bg-red-500/10 border border-red-500/20">
+                        <p className="text-red-500 text-xs font-bold uppercase">{passwordError}</p>
+                      </div>
+                    )}
+
+                    {passwordSuccess && (
+                      <div className="p-4 bg-green-500/10 border border-green-500/20 flex items-center gap-2">
+                        <Check className="text-green-500" size={16} />
+                        <p className="text-green-500 text-xs font-bold uppercase">{(t as any).passwordChanged}</p>
+                      </div>
+                    )}
+
+                    <button
+                      onClick={handlePasswordChange}
+                      className="w-full py-4 bg-orange-600 text-black font-black uppercase text-xs hover:bg-orange-500 transition-all mt-4"
+                    >
+                      {(t as any).updatePassword}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Notifications Section */}
+                <div className="space-y-6">
+                  <div className="flex items-center gap-4">
+                    <Bell className="text-orange-500" size={24} />
+                    <h3 className="text-2xl font-black italic text-white uppercase tracking-tighter">{(t as any).notifications}</h3>
+                  </div>
+
+                  <div className="bg-white/5 border border-white/10 p-6 space-y-4">
+                    {[
+                      { key: 'email', label: (t as any).emailNotif },
+                      { key: 'sms', label: (t as any).smsNotif },
+                      { key: 'promotions', label: (t as any).promoNotif },
+                      { key: 'orderUpdates', label: (t as any).orderNotif }
+                    ].map((item) => (
+                      <div key={item.key} className="flex items-center justify-between p-4 border border-white/5 hover:border-white/10 transition-all">
+                        <span className="text-white font-bold text-sm uppercase tracking-wider">{item.label}</span>
+                        <button
+                          onClick={() => setNotifications({ ...notifications, [item.key]: !notifications[item.key as keyof typeof notifications] })}
+                          className={`w-14 h-8 rounded-full relative transition-all ${notifications[item.key as keyof typeof notifications] ? 'bg-orange-500' : 'bg-white/10'}`}
+                        >
+                          <span className={`absolute top-1 w-6 h-6 bg-white rounded-full transition-all ${notifications[item.key as keyof typeof notifications] ? 'left-7' : 'left-1'}`} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Danger Zone */}
+                <div className="space-y-6 pt-8 border-t border-red-500/20">
+                  <div className="flex items-center gap-4">
+                    <AlertTriangle className="text-red-500" size={24} />
+                    <h3 className="text-2xl font-black italic text-red-500 uppercase tracking-tighter">{(t as any).dangerZone}</h3>
+                  </div>
+
+                  <div className="bg-red-500/5 border border-red-500/20 p-6 space-y-4">
+                    <p className="text-white/60 text-sm">{(t as any).deleteWarning}</p>
+
+                    {!showDeleteConfirm ? (
+                      <button
+                        onClick={() => setShowDeleteConfirm(true)}
+                        className="w-full py-4 border border-red-500/50 text-red-500 font-black uppercase text-xs hover:bg-red-500 hover:text-white transition-all"
+                      >
+                        {(t as any).deleteAccount}
+                      </button>
+                    ) : (
+                      <div className="space-y-4">
+                        <p className="text-red-500 font-bold text-sm text-center uppercase tracking-widest">
+                          {lang === 'en' ? 'ARE YOU SURE?' : lang === 'he' ? 'האם אתה בטוח?' : 'هل أنت متأكد؟'}
+                        </p>
+                        <div className="flex gap-4">
+                          <button
+                            onClick={handleDeleteAccount}
+                            className="flex-1 py-4 bg-red-600 text-white font-black uppercase text-xs hover:bg-red-700 transition-all"
+                          >
+                            {(t as any).confirmDelete}
+                          </button>
+                          <button
+                            onClick={() => setShowDeleteConfirm(false)}
+                            className="px-8 py-4 border border-white/20 text-white font-black uppercase text-xs hover:bg-white/10 transition-all"
+                          >
+                            {(t as any).cancelDelete}
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </motion.div>
             )}

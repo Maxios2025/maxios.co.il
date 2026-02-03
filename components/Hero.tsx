@@ -30,33 +30,29 @@ export const Hero: React.FC<HeroProps> = ({ lang }) => {
   const t = content[lang];
 
   return (
-    <div className="relative w-full h-full flex flex-col items-center justify-end pb-24 md:pb-32 px-6">
-      <div className="text-center space-y-4 md:space-y-6 max-w-2xl">
-        <motion.p 
-          initial={{ opacity: 0, y: 30 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.8, duration: 1.2, ease: "easeOut" }}
-          className="text-xs md:text-lg tracking-[0.4em] md:tracking-[0.8em] uppercase text-orange-500 font-black mb-4 drop-shadow-[0_0_15px_rgba(249,115,22,0.5)] leading-tight"
-        >
+    <div className="relative w-full h-full">
+      {/* Tagline - Bottom Center */}
+      <motion.div
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.8, duration: 1.2, ease: "easeOut" }}
+        className="absolute bottom-20 md:bottom-24 left-0 right-0 text-center px-6"
+        style={{ direction: 'ltr' }}
+      >
+        <p className="text-sm md:text-xl tracking-[0.3em] md:tracking-[0.5em] uppercase text-orange-500 font-black mb-3 md:mb-4 drop-shadow-[0_0_15px_rgba(249,115,22,0.5)]">
           {t.sub}
-        </motion.p>
-        
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 0.7 }}
-          transition={{ delay: 1.4, duration: 1.5 }}
-          className="text-[10px] md:text-sm tracking-[0.2em] md:tracking-[0.4em] uppercase text-white leading-loose font-medium px-4"
-        >
+        </p>
+        <p className="text-[9px] md:text-sm tracking-[0.15em] md:tracking-[0.3em] uppercase text-white/60 leading-relaxed max-w-xl mx-auto">
           {t.desc}
-        </motion.p>
-      </div>
+        </p>
+      </motion.div>
 
       {/* Scroll Indicator */}
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         transition={{ delay: 2, duration: 1 }}
-        className="absolute bottom-6 md:bottom-10 flex flex-col items-center gap-2"
+        className="absolute bottom-6 md:bottom-10 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2"
       >
         <span className="text-[8px] md:text-[10px] tracking-[0.3em] md:tracking-[0.5em] uppercase text-white/30 font-bold">{t.scroll}</span>
         <motion.div
@@ -66,12 +62,6 @@ export const Hero: React.FC<HeroProps> = ({ lang }) => {
           <ChevronDown size={16} className="text-orange-500/50 md:w-5 md:h-5" />
         </motion.div>
       </motion.div>
-      
-      {/* Background Tech Overlay */}
-      <div className="absolute inset-0 pointer-events-none opacity-10 overflow-hidden">
-        <div className="absolute top-1/4 left-4 md:left-10 text-[40px] md:text-[80px] font-black italic text-white/10 select-none">120K RPM</div>
-        <div className="absolute bottom-1/4 right-4 md:right-10 text-[40px] md:text-[80px] font-black italic text-white/10 select-none">HEPA-14</div>
-      </div>
     </div>
   );
 };

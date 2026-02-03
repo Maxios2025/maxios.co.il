@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Hero } from '../components/Hero';
@@ -18,6 +18,14 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
   const { scrollY } = useScroll();
   const homeHeroOpacity = useTransform(scrollY, [100, 300], [1, 0]);
 
+  // Detect mobile for reduced motion
+  const [isMobile, setIsMobile] = useState(false);
+  const [videoLoaded, setVideoLoaded] = useState(false);
+
+  useEffect(() => {
+    setIsMobile(window.innerWidth < 768);
+  }, []);
+
   // Image carousel states
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [imageDirection, setImageDirection] = useState(0);
@@ -30,11 +38,12 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
     "/lods.jpeg"
   ];
 
+  // Simpler animations on mobile for better performance
   const slideVariants = {
     enter: (dir: number) => ({
-      x: dir > 0 ? 300 : -300,
+      x: isMobile ? 0 : (dir > 0 ? 300 : -300),
       opacity: 0,
-      scale: 0.9
+      scale: isMobile ? 1 : 0.9
     }),
     center: {
       x: 0,
@@ -42,9 +51,9 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
       scale: 1
     },
     exit: (dir: number) => ({
-      x: dir < 0 ? 300 : -300,
+      x: isMobile ? 0 : (dir < 0 ? 300 : -300),
       opacity: 0,
-      scale: 0.9
+      scale: isMobile ? 1 : 0.9
     })
   };
 
@@ -69,23 +78,36 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
       >
 
         <section className="relative h-screen sticky top-0 overflow-hidden">
-          {/* Video Background */}
+          {/* Video Background with poster for fast initial display */}
           <video
             autoPlay
             muted
             loop
             playsInline
-            className="absolute inset-0 w-full h-full object-cover"
-            style={{ zIndex: 0 }}
+            preload="auto"
+            poster="/WhatsApp Image 2026-01-29 at 4.37.53 PM.jpeg"
+            onLoadedData={() => setVideoLoaded(true)}
+            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${videoLoaded ? 'opacity-100' : 'opacity-0'}`}
+            style={{ zIndex: 0, willChange: 'transform' }}
           >
             <source src="/background-video.mp4" type="video/mp4" />
           </video>
+          {/* Poster fallback while video loads */}
+          {!videoLoaded && (
+            <div
+              className="absolute inset-0 bg-cover bg-center"
+              style={{
+                zIndex: 0,
+                backgroundImage: 'url(/WhatsApp Image 2026-01-29 at 4.37.53 PM.jpeg)'
+              }}
+            />
+          )}
           {/* Dark overlay for readability */}
           <div className="absolute inset-0 bg-black/40" style={{ zIndex: 1 }} />
           {/* Hero content centered over video */}
           <motion.div
             className="absolute inset-0 flex items-center justify-center"
-            style={{ zIndex: 2, opacity: homeHeroOpacity }}
+            style={{ zIndex: 2, opacity: homeHeroOpacity, willChange: 'opacity' }}
           >
             <Hero lang={lang} />
           </motion.div>
@@ -96,9 +118,9 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
           <div className="flex flex-col items-center justify-center px-6 relative z-10 pt-32 md:pt-48 pb-6 md:pb-8">
             {/* Hero Statement - The Text IS the Design */}
             <motion.h2
-              initial={{ opacity: 0, scale: 0.95 }}
-              whileInView={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 1.5, ease: [0.22, 1, 0.36, 1] }}
+              initial={isMobile ? { opacity: 0 } : { opacity: 0, scale: 0.95 }}
+              whileInView={isMobile ? { opacity: 1 } : { opacity: 1, scale: 1 }}
+              transition={{ duration: isMobile ? 0.5 : 1.5, ease: [0.22, 1, 0.36, 1] }}
               viewport={{ once: true, margin: "-100px" }}
               className={`text-white text-center leading-[1.1] hero-glow mb-6 md:mb-8 ${
                 lang === 'he'
@@ -121,8 +143,9 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
                   {/* Main Vacuum Image Carousel */}
                   <div className="relative">
                     <div className="relative group">
-                      <div className="absolute inset-0 bg-orange-500/20 blur-[100px] group-hover:bg-orange-500/30 transition-all duration-700" />
-                      <div className="relative border-2 border-orange-500/20 p-8 md:p-12 bg-black/40 backdrop-blur-xl overflow-hidden">
+                      {/* Blur glow - hidden on mobile for performance */}
+                      <div className="hidden md:block absolute inset-0 bg-orange-500/20 blur-[100px] group-hover:bg-orange-500/30 transition-all duration-700" />
+                      <div className="relative border-2 border-orange-500/20 p-8 md:p-12 bg-black/40 md:backdrop-blur-xl overflow-hidden">
                         <AnimatePresence mode="wait" custom={imageDirection}>
                           <motion.img
                             key={currentImageIndex}
@@ -134,7 +157,7 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
                             animate="center"
                             exit="exit"
                             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-                            className="w-full h-auto object-contain max-h-[400px] mx-auto filter drop-shadow-[0_0_60px_rgba(249,115,22,0.3)]"
+                            className="w-full h-auto object-contain max-h-[400px] mx-auto md:filter md:drop-shadow-[0_0_60px_rgba(249,115,22,0.3)]"
                           />
                         </AnimatePresence>
                         <div className="absolute top-4 left-4 px-4 py-2 bg-orange-600 text-black font-black text-[10px] uppercase tracking-widest">
@@ -182,8 +205,9 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
                   {/* Free Gift Section */}
                   <div className="grid grid-cols-2 gap-4">
                     {/* Photos Stacked Vertically */}
-                    <div className="relative group border border-purple-500/30 p-4 bg-black/40 backdrop-blur-xl overflow-hidden">
-                      <div className="absolute inset-0 bg-purple-500/10 blur-[60px] group-hover:bg-purple-500/20 transition-all duration-700" />
+                    <div className="relative group border border-purple-500/30 p-4 bg-black/40 md:backdrop-blur-xl overflow-hidden">
+                      {/* Blur glow - hidden on mobile for performance */}
+                      <div className="hidden md:block absolute inset-0 bg-purple-500/10 blur-[60px] group-hover:bg-purple-500/20 transition-all duration-700" />
                       <div className="relative flex flex-col gap-3">
                         <img
                           src="/WhatsApp Image 2026-01-29 at 3.24.28 PM.jpeg"
@@ -207,8 +231,9 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
                       </div>
                     </div>
                     {/* Description */}
-                    <div className={`relative border border-purple-500/30 p-6 bg-black/40 backdrop-blur-xl flex flex-col justify-center ${lang === 'he' || lang === 'ar' ? 'text-right' : ''}`}>
-                      <div className="absolute inset-0 bg-purple-500/5 blur-[60px]" />
+                    <div className={`relative border border-purple-500/30 p-6 bg-black/40 md:backdrop-blur-xl flex flex-col justify-center ${lang === 'he' || lang === 'ar' ? 'text-right' : ''}`}>
+                      {/* Blur glow - hidden on mobile for performance */}
+                      <div className="hidden md:block absolute inset-0 bg-purple-500/5 blur-[60px]" />
                       <div className="relative">
                         <h5 className={`text-lg md:text-xl font-black text-purple-400 uppercase mb-3 ${lang === 'he' ? 'font-hero-hebrew' : lang === 'ar' ? 'font-hero-arabic' : ''}`}>
                           {lang === 'en' ? 'MOP ATTACHMENT' : lang === 'he' ? 'ראש מגב' : 'ملحق ممسحة'}

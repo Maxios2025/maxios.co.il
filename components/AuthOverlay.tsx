@@ -1,27 +1,33 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, ArrowRight, AlertTriangle, Eye, EyeOff, CheckCircle2 } from 'lucide-react';
+import { X, ArrowRight, Eye, EyeOff, PartyPopper, Sparkles } from 'lucide-react';
 import { Language } from '../App';
-import { firebaseSignIn, firebaseSignUp, saveUserProfile, getUserProfile, storeVerificationCode, verifyCode } from '../lib/firebase';
+import { firebaseSignIn, firebaseSignUp, saveUserProfile, getUserProfile } from '../lib/firebase';
 
 interface AuthOverlayProps {
   isOpen: boolean;
   onClose: () => void;
   lang: Language;
   onSuccess: (user: any) => void;
+  initialMode?: 'login' | 'signup';
 }
 
-export const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, lang, onSuccess }) => {
-  const [mode, setMode] = useState<'login' | 'signup'>('login');
+export const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, lang, onSuccess, initialMode = 'login' }) => {
+  const [mode, setMode] = useState<'login' | 'signup'>(initialMode);
   const [showPassword, setShowPassword] = useState(false);
+
+  // Sync mode with initialMode when dialog opens
+  useEffect(() => {
+    if (isOpen) {
+      setMode(initialMode);
+    }
+  }, [isOpen, initialMode]);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState('');
-  const [showOtpInput, setShowOtpInput] = useState(false);
-  const [otp, setOtp] = useState('');
-  const [otpError, setOtpError] = useState('');
-  const [pendingUserData, setPendingUserData] = useState<any>(null);
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [newUserData, setNewUserData] = useState<any>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -37,42 +43,48 @@ export const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, lang,
     en: {
       login: "LOGIN PROTOCOL", signup: "INITIALIZE ACCOUNT",
       switchSignup: "NEED ACCESS? REQUEST ACCOUNT", switchLogin: "ALREADY RECOGNIZED? IDENTIFY",
-      submit: "EXECUTE", name: "FULL NAME", email: "EMAIL ADDRESS", phone: "PHONE (05XXXXXXXX)",
-      password: "PASSWORD",
+      submit: "EXECUTE", name: "FULL NAME", email: "USER NAME", phone: "PHONE (05XXXXXXXX)",
+      password: "PASSWORD", city: "CITY", zip: "ZIP CODE", street: "STREET",
+      processing: "PROCESSING...",
       errPass: "Password must be 8+ chars, with uppercase, lowercase, and numbers (English only).",
       errPhone: "Invalid Israel Phone. Must start with 05 and be 10 digits.",
       errEmail: "Invalid Email format (@ required).",
       errZip: "Invalid Israel Zip Code (5 or 7 digits).",
-      otpTitle: "VERIFICATION REQUIRED",
-      otpDesc: "Enter the 6-digit code sent to your email",
-      otpPlaceholder: "000000",
-      otpSubmit: "VERIFY CODE",
-      otpResend: "RESEND CODE",
-      otpInvalid: "Invalid or expired code. Please try again."
+      welcomeTitle: "WELCOME TO MAXIOS",
+      welcomeSubtitle: "ACCOUNT ACTIVATED",
+      welcomeMessage: "Congratulations! You are now part of the MAXIOS elite. Your account has been successfully created and your data is securely stored.",
+      welcomeButton: "ENTER YOUR ACCOUNT"
+    },
+    ar: {
+      login: "تسجيل الدخول", signup: "إنشاء حساب", switchSignup: "حساب جديد", switchLogin: "لديك حساب؟",
+      submit: "تنفيذ", name: "الاسم الكامل", email: "اسم المستخدم", phone: "الهاتف (05XXXXXXXX)",
+      password: "كلمة المرور", city: "المدينة", zip: "الرمز البريدي", street: "الشارع",
+      processing: "...جاري المعالجة",
+      errPass: "كلمة المرور: 8+ أحرف مع أحرف كبيرة وصغيرة وأرقام.", errPhone: "رقم هاتف غير صالح.",
+      errEmail: "بريد إلكتروني غير صالح.", errZip: "رمز بريدي غير صالح.",
+      welcomeTitle: "مرحباً بك في MAXIOS", welcomeSubtitle: "تم تفعيل الحساب",
+      welcomeMessage: "تهانينا! أنت الآن جزء من نخبة MAXIOS. تم إنشاء حسابك بنجاح وتخزين بياناتك بشكل آمن.",
+      welcomeButton: "ادخل إلى حسابك"
+    },
+    he: {
+      login: "פרוטוקול התחברות", signup: "אתחול חשבון", switchSignup: "בקש גישה", switchLogin: "הזדהה",
+      submit: "בצע", name: "שם מלא", email: "שם משתמש", phone: "טלפון (05XXXXXXXX)",
+      password: "סיסמה", city: "עיר", zip: "מיקוד", street: "רחוב",
+      processing: "...מעבד",
+      errPass: "סיסמה: 8+ תווים, אותיות גדולות וקטנות ומספרים.", errPhone: "מספר טלפון לא תקין.",
+      errEmail: "אימייל לא תקין.", errZip: "מיקוד לא תקין.",
+      welcomeTitle: "ברוכים הבאים ל-MAXIOS", welcomeSubtitle: "החשבון הופעל",
+      welcomeMessage: "מזל טוב! אתה עכשיו חלק מהאליטה של MAXIOS. החשבון שלך נוצר בהצלחה והנתונים שלך נשמרו בצורה מאובטחת.",
+      welcomeButton: "כנס לחשבון שלך"
     }
   }[lang] || {
-    ar: { login: "بروتوكول الدخول", signup: "بدء حساب", switchSignup: "طلب حساب", switchLogin: "تعرف على الهوية", submit: "تنفيذ", password: "كلمة المرور", otpTitle: "التحقق مطلوب", otpDesc: "أدخل الرمز المكون من 6 أرقام المرسل إلى بريدك الإلكتروني", otpPlaceholder: "000000", otpSubmit: "تحقق من الرمز", otpResend: "إعادة إرسال الرمز", otpInvalid: "رمز غير صالح أو منتهي الصلاحية" },
-    he: { login: "פרוטוקול התחברות", signup: "אתחול חשבון", switchSignup: "בקש גישה", switchLogin: "הזדהה", submit: "בצע", password: "סיסמה", otpTitle: "נדרש אימות", otpDesc: "הזן את קוד בן 6 ספרות שנשלח לאימייל שלך", otpPlaceholder: "000000", otpSubmit: "אמת קוד", otpResend: "שלח קוד מחדש", otpInvalid: "קוד לא חוקי או פג תוקף" }
-  }[lang];
-
-  // Generate 6-digit OTP
-  const generateOTP = () => {
-    return Math.floor(100000 + Math.random() * 900000).toString();
-  };
-
-  // Store OTP in Firebase
-  const storeOTP = async (email: string, code: string) => {
-    const { error } = await storeVerificationCode(email, code);
-    if (error) {
-      console.error('Error storing OTP:', error);
-      throw error;
-    }
-  };
-
-  // Verify OTP
-  const verifyOTP = async (email: string, code: string) => {
-    const { valid } = await verifyCode(email, code);
-    return valid;
+    login: "LOGIN PROTOCOL", signup: "INITIALIZE ACCOUNT", switchSignup: "NEED ACCESS? REQUEST ACCOUNT",
+    switchLogin: "ALREADY RECOGNIZED? IDENTIFY", submit: "EXECUTE", name: "FULL NAME", email: "USER NAME",
+    phone: "PHONE (05XXXXXXXX)", password: "PASSWORD", city: "CITY", zip: "ZIP CODE", street: "STREET",
+    processing: "PROCESSING...",
+    errPass: "Password must be 8+ chars", errPhone: "Invalid Phone", errEmail: "Invalid Email", errZip: "Invalid Zip",
+    welcomeTitle: "WELCOME TO MAXIOS", welcomeSubtitle: "ACCOUNT ACTIVATED",
+    welcomeMessage: "Congratulations! Your account has been successfully created.", welcomeButton: "ENTER YOUR ACCOUNT"
   };
 
   const validate = () => {
@@ -113,7 +125,7 @@ export const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, lang,
     setAuthError('');
 
     // ADMIN OVERRIDE
-    if (formData.email === 'maxios1234' && formData.password === 'maxios1900') {
+    if (formData.email === 'service@maxios.co.il' && formData.password === 'maxios1900') {
       onSuccess({
         name: 'ADMIN COMMANDER', email: 'admin@maxios.co.il', phone: '000', isAdmin: true,
         address: { city: 'HQ', zip: '00000', street: 'Kfar Kanna' }
@@ -127,46 +139,38 @@ export const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, lang,
 
     try {
       if (mode === 'signup') {
-        // Generate and store OTP
-        const otpCode = generateOTP();
-        await storeOTP(formData.email, otpCode);
+        // Create account directly with Firebase
+        const { user, error: signupError } = await firebaseSignUp(formData.email, formData.password);
 
-        // Send OTP via email API
-        try {
-          const response = await fetch('/api/send-otp', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
+        if (signupError) throw signupError;
+
+        if (user) {
+          // Save user profile
+          try {
+            await saveUserProfile(user.uid, {
               email: formData.email,
-              code: otpCode
-            })
-          });
-
-          if (!response.ok) {
-            console.error('Failed to send OTP email');
-            // Fallback to alert for testing
-            alert(`Email service unavailable. Your OTP is: ${otpCode}`);
+              name: formData.name,
+              phone: formData.phone,
+              city: formData.city,
+              zip: formData.zip,
+              street: formData.street,
+            });
+          } catch (profileError) {
+            console.error('Profile save error (continuing anyway):', profileError);
           }
-        } catch (emailError) {
-          console.error('Email sending error:', emailError);
-          // Fallback to alert for testing
-          alert(`Email service unavailable. Your OTP is: ${otpCode}`);
+
+          // Store user data and show welcome screen
+          setNewUserData({
+            id: user.uid,
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone,
+            isAdmin: false,
+            address: { city: formData.city, zip: formData.zip, street: formData.street }
+          });
+          setShowWelcome(true);
+          setLoading(false);
         }
-
-        // Store pending user data
-        setPendingUserData({
-          email: formData.email,
-          password: formData.password,
-          name: formData.name,
-          phone: formData.phone,
-          city: formData.city,
-          zip: formData.zip,
-          street: formData.street,
-        });
-
-        // Show OTP input screen
-        setShowOtpInput(true);
-        setLoading(false);
       } else {
         // Login with Firebase
         const { user, error: authError } = await firebaseSignIn(formData.email, formData.password);
@@ -196,158 +200,95 @@ export const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, lang,
     }
   };
 
-  const handleOtpSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setOtpError('');
-    setLoading(true);
-
-    try {
-      // Verify OTP
-      const isValid = await verifyOTP(pendingUserData.email, otp);
-
-      if (!isValid) {
-        setOtpError((t as any).otpInvalid || 'Invalid or expired code');
-        setLoading(false);
-        return;
-      }
-
-      // OTP verified - now create the actual account with Firebase
-      const { user, error: authError } = await firebaseSignUp(pendingUserData.email, pendingUserData.password);
-
-      if (authError) throw authError;
-
-      // Store additional user data
-      if (user) {
-        await new Promise(resolve => setTimeout(resolve, 500));
-
-        const { error: profileError } = await saveUserProfile(user.uid, {
-          email: pendingUserData.email,
-          name: pendingUserData.name,
-          phone: pendingUserData.phone,
-          city: pendingUserData.city,
-          zip: pendingUserData.zip,
-          street: pendingUserData.street,
-        });
-
-        if (profileError) {
-          console.error('Profile creation error:', profileError);
-          throw profileError;
-        }
-
-        onSuccess({
-          id: user.uid,
-          name: pendingUserData.name,
-          email: pendingUserData.email,
-          phone: pendingUserData.phone,
-          isAdmin: false,
-          address: { city: pendingUserData.city, zip: pendingUserData.zip, street: pendingUserData.street }
-        });
-      }
-    } catch (error: any) {
-      setOtpError(error.message || 'Verification failed');
-      setLoading(false);
+  const handleWelcomeContinue = () => {
+    if (newUserData) {
+      onSuccess(newUserData);
     }
   };
 
-  const handleResendOtp = async () => {
-    try {
-      const otpCode = generateOTP();
-      await storeOTP(pendingUserData.email, otpCode);
-
-      // Send OTP via email API
-      try {
-        const response = await fetch('/api/send-otp', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            email: pendingUserData.email,
-            code: otpCode
-          })
-        });
-
-        if (!response.ok) {
-          console.error('Failed to send OTP email');
-          alert(`Email service unavailable. Your OTP is: ${otpCode}`);
-        }
-      } catch (emailError) {
-        console.error('Email sending error:', emailError);
-        alert(`Email service unavailable. Your OTP is: ${otpCode}`);
-      }
-
-      setOtpError('');
-      setOtp('');
-    } catch (error: any) {
-      setOtpError(error.message || 'Failed to resend code');
-    }
-  };
+  const isRTL = lang === 'he' || lang === 'ar';
 
   return (
     <AnimatePresence>
       {isOpen && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-[1000] flex items-center justify-center bg-black/95 backdrop-blur-2xl p-6">
-          <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} className="bg-zinc-950 border border-white/5 w-full max-w-2xl p-10 md:p-16 relative overflow-hidden max-h-[90vh] overflow-y-auto">
-            <button onClick={onClose} className="absolute top-8 right-8 text-white/20 hover:text-white"><X size={32} /></button>
+          <motion.div
+            initial={{ scale: 0.95, y: 20 }}
+            animate={{ scale: 1, y: 0 }}
+            className="bg-zinc-950 border border-white/5 w-full max-w-2xl p-10 md:p-16 relative overflow-hidden max-h-[90vh] overflow-y-auto"
+            dir={isRTL ? 'rtl' : 'ltr'}
+          >
+            <button onClick={onClose} className={`absolute top-8 ${isRTL ? 'left-8' : 'right-8'} text-white/20 hover:text-white`}><X size={32} /></button>
 
-            {/* OTP Verification Screen */}
-            {showOtpInput ? (
-              <div className="space-y-12">
-                <div className="space-y-4 text-center">
-                  <h3 className="text-4xl md:text-6xl font-black italic tracking-tighter text-white uppercase">{(t as any).otpTitle}</h3>
-                  <p className="text-white/40 text-sm uppercase tracking-widest">{(t as any).otpDesc}</p>
-                  <p className="text-orange-500 text-xs font-black">{pendingUserData?.email}</p>
+            {/* Welcome Screen - After Successful Signup */}
+            {showWelcome ? (
+              <motion.div
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="space-y-12 text-center py-8"
+              >
+                {/* Celebration Icon */}
+                <div className="flex justify-center">
+                  <motion.div
+                    initial={{ scale: 0 }}
+                    animate={{ scale: 1 }}
+                    transition={{ type: "spring", delay: 0.2 }}
+                    className="w-32 h-32 bg-gradient-to-br from-orange-500 to-orange-600 flex items-center justify-center"
+                  >
+                    <PartyPopper size={64} className="text-white" />
+                  </motion.div>
                 </div>
 
-                <form onSubmit={handleOtpSubmit} className="space-y-8">
-                  <div className="space-y-4">
-                    <input
-                      type="text"
-                      value={otp}
-                      onChange={(e) => setOtp(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                      placeholder={(t as any).otpPlaceholder}
-                      maxLength={6}
-                      className="w-full bg-white/5 border border-white/10 p-6 text-white text-3xl text-center font-black tracking-[0.5em] outline-none focus:border-orange-500"
-                      autoFocus
-                    />
-                    {otpError && (
-                      <div className="p-4 bg-red-500/10 border border-red-500/20">
-                        <p className="text-red-500 text-xs font-bold uppercase text-center">{otpError}</p>
-                      </div>
-                    )}
+                {/* Welcome Text */}
+                <div className="space-y-4">
+                  <motion.div
+                    initial={{ opacity: 0, y: 20 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.3 }}
+                  >
+                    <p className="text-orange-500 text-xs font-black tracking-[0.3em] uppercase mb-2">
+                      <Sparkles className="inline-block mr-2" size={14} />
+                      {(t as any).welcomeSubtitle}
+                      <Sparkles className="inline-block ml-2" size={14} />
+                    </p>
+                    <h3 className="text-4xl md:text-6xl font-black italic tracking-tighter text-white uppercase">
+                      {(t as any).welcomeTitle}
+                    </h3>
+                  </motion.div>
+                </div>
+
+                {/* User Info Card */}
+                <motion.div
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.5 }}
+                  className="bg-white/5 border border-orange-500/20 p-8 space-y-4"
+                >
+                  <p className="text-white/60 text-sm leading-relaxed">
+                    {(t as any).welcomeMessage}
+                  </p>
+                  <div className="pt-4 border-t border-white/10 space-y-2">
+                    <p className="text-white font-black text-lg uppercase">{newUserData?.name}</p>
+                    <p className="text-orange-500 text-sm font-bold">{newUserData?.email}</p>
                   </div>
+                </motion.div>
 
-                  <div className="space-y-4">
-                    <button
-                      type="submit"
-                      disabled={loading || otp.length !== 6}
-                      className="w-full py-6 bg-orange-600 hover:bg-white text-black font-black uppercase tracking-tighter flex items-center justify-center gap-4 disabled:opacity-50 disabled:cursor-not-allowed"
-                    >
-                      {loading ? 'VERIFYING...' : (t as any).otpSubmit} <ArrowRight size={20} />
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={handleResendOtp}
-                      className="w-full py-4 border border-white/10 text-white/60 hover:text-white hover:border-orange-500 font-black uppercase tracking-tighter text-sm transition-all"
-                    >
-                      {(t as any).otpResend}
-                    </button>
-
-                    <button
-                      type="button"
-                      onClick={() => { setShowOtpInput(false); setOtp(''); setOtpError(''); }}
-                      className="w-full py-2 text-white/40 hover:text-white text-xs uppercase tracking-widest"
-                    >
-                      ← BACK TO SIGNUP
-                    </button>
-                  </div>
-                </form>
-              </div>
+                {/* Continue Button */}
+                <motion.button
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.7 }}
+                  onClick={handleWelcomeContinue}
+                  className="w-full py-6 bg-orange-600 hover:bg-white text-black font-black uppercase tracking-tighter flex items-center justify-center gap-4 transition-all"
+                >
+                  {(t as any).welcomeButton} <ArrowRight size={20} />
+                </motion.button>
+              </motion.div>
             ) : (
               // Original Login/Signup Form
               <div className="space-y-12">
-                <div className="space-y-4">
+                <div className="space-y-6">
                   <h3 className="text-4xl md:text-6xl font-black italic tracking-tighter text-white uppercase">{mode === 'login' ? t.login : t.signup}</h3>
-                  <button type="button" onClick={() => { setMode(mode === 'login' ? 'signup' : 'login'); setErrors({}); }} className="text-orange-500 font-black tracking-widest text-[10px] uppercase">{mode === 'login' ? t.switchSignup : t.switchLogin}</button>
                 </div>
               <form onSubmit={handleSubmit} className="space-y-8">
                 {mode === 'signup' && (
@@ -358,7 +299,7 @@ export const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, lang,
                     </div>
                     <div className="space-y-2">
                       <label className="text-[10px] font-black tracking-widest text-white/20 uppercase">{(t as any).phone}</label>
-                      <input required type="tel" maxLength={10} value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} className={`w-full bg-white/5 border ${errors.phone ? 'border-red-500' : 'border-white/10'} p-4 text-white text-xs outline-none focus:border-orange-500`} />
+                      <input required type="tel" maxLength={10} value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} dir="ltr" className={`w-full bg-white/5 border ${errors.phone ? 'border-red-500' : 'border-white/10'} p-4 ${isRTL ? 'text-right' : ''} text-white text-xs outline-none focus:border-orange-500`} />
                       {errors.phone && <p className="text-red-500 text-[9px] font-bold uppercase">{errors.phone}</p>}
                     </div>
                   </div>
@@ -366,14 +307,14 @@ export const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, lang,
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                   <div className="space-y-2">
                     <label className="text-[10px] font-black tracking-widest text-white/20 uppercase">{t.email}</label>
-                    <input required type="text" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} className={`w-full bg-white/5 border ${errors.email ? 'border-red-500' : 'border-white/10'} p-4 text-white text-xs outline-none focus:border-orange-500`} />
+                    <input required type="email" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} dir="ltr" className={`w-full bg-white/5 border ${errors.email ? 'border-red-500' : 'border-white/10'} p-4 ${isRTL ? 'text-right' : ''} text-white text-xs outline-none focus:border-orange-500`} />
                     {errors.email && <p className="text-red-500 text-[9px] font-bold uppercase">{errors.email}</p>}
                   </div>
                   <div className="space-y-2">
                     <label className="text-[10px] font-black tracking-widest text-white/20 uppercase">{t.password}</label>
                     <div className="relative">
-                      <input required type={showPassword ? "text" : "password"} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} className={`w-full bg-white/5 border ${errors.password ? 'border-red-500' : 'border-white/10'} p-4 text-white text-xs outline-none focus:border-orange-500`} />
-                      <button type="button" onClick={() => setShowPassword(!showPassword)} className="absolute right-4 top-1/2 -translate-y-1/2 text-white/20 hover:text-orange-500">
+                      <input required type={showPassword ? "text" : "password"} value={formData.password} onChange={e => setFormData({...formData, password: e.target.value})} dir="ltr" className={`w-full bg-white/5 border ${errors.password ? 'border-red-500' : 'border-white/10'} p-4 ${isRTL ? 'pr-12 text-right' : 'pr-12'} text-white text-xs outline-none focus:border-orange-500`} />
+                      <button type="button" onClick={() => setShowPassword(!showPassword)} className={`absolute ${isRTL ? 'left-4' : 'right-4'} top-1/2 -translate-y-1/2 text-white/20 hover:text-orange-500`}>
                         {showPassword ? <EyeOff size={16}/> : <Eye size={16}/>}
                       </button>
                     </div>
@@ -388,14 +329,14 @@ export const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, lang,
                 {mode === 'signup' && (
                   <div className="space-y-8 p-6 bg-white/5 border border-white/5">
                     <div className="grid grid-cols-2 gap-4">
-                      <input required placeholder="CITY" type="text" value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} className="w-full bg-white/5 border border-white/10 p-4 text-white text-xs" />
-                      <input required placeholder="ZIP" type="text" value={formData.zip} onChange={e => setFormData({...formData, zip: e.target.value})} className={`w-full bg-white/5 border ${errors.zip ? 'border-red-500' : 'border-white/10'} p-4 text-white text-xs`} />
+                      <input required placeholder={(t as any).city} type="text" value={formData.city} onChange={e => setFormData({...formData, city: e.target.value})} className="w-full bg-white/5 border border-white/10 p-4 text-white text-xs" />
+                      <input required placeholder={(t as any).zip} type="text" value={formData.zip} onChange={e => setFormData({...formData, zip: e.target.value})} dir="ltr" className={`w-full bg-white/5 border ${errors.zip ? 'border-red-500' : 'border-white/10'} p-4 ${isRTL ? 'text-right' : ''} text-white text-xs`} />
                     </div>
-                    <input required placeholder="STREET" type="text" value={formData.street} onChange={e => setFormData({...formData, street: e.target.value})} className="w-full bg-white/5 border border-white/10 p-4 text-white text-xs" />
+                    <input required placeholder={(t as any).street} type="text" value={formData.street} onChange={e => setFormData({...formData, street: e.target.value})} className="w-full bg-white/5 border border-white/10 p-4 text-white text-xs" />
                   </div>
                 )}
                 <button type="submit" disabled={loading} className="w-full py-6 bg-orange-600 hover:bg-white text-black font-black uppercase tracking-tighter flex items-center justify-center gap-4 disabled:opacity-50 disabled:cursor-not-allowed">
-                  {loading ? 'PROCESSING...' : t.submit} <ArrowRight size={20} />
+                  {loading ? (t as any).processing : t.submit} <ArrowRight size={20} />
                 </button>
               </form>
               </div>

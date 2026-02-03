@@ -1,33 +1,46 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 
 interface LogoProps {
   className?: string;
   onClick?: () => void;
+  isRTL?: boolean;
 }
 
-export const Logo: React.FC<LogoProps> = ({ className = "", onClick }) => {
+export const Logo: React.FC<LogoProps> = ({ className = "", onClick, isRTL = false }) => {
+  const [hovered, setHovered] = useState(false);
+
   return (
-    <div 
+    <div
       onClick={onClick}
-      className={`inline-flex items-center gap-[0.3em] ${className} font-black italic tracking-tighter leading-none select-none`}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      className={`inline-flex items-center ${className} leading-none select-none cursor-pointer relative`}
+      style={{ textShadow: '0 0 60px rgba(255,255,255,0.5), 0 0 100px rgba(255,255,255,0.3)' }}
     >
-      {/* Speed Lines Icon */}
-      <svg 
-        viewBox="0 0 100 60" 
-        className="h-[0.9em] w-auto flex-shrink-0"
-        fill="currentColor"
-      >
-        <rect x="0" y="8" width="40" height="5" rx="1" />
-        <rect x="20" y="20" width="60" height="5" rx="1" />
-        <rect x="10" y="32" width="75" height="5" rx="1" />
-        <rect x="30" y="44" width="45" height="5" rx="1" />
-      </svg>
-      
-      {/* Text: MAXIOS */}
-      <span className="text-[1em] block">
-        MAXIOS
-      </span>
+      <img
+        src="/logo.svg"
+        alt="MAXIOS"
+        className="h-[8em] w-auto"
+        draggable={false}
+        style={{
+          filter: 'brightness(0) invert(1)',
+          opacity: hovered ? 0 : 1,
+          transition: 'opacity 0.2s',
+          position: 'absolute',
+        }}
+      />
+      <img
+        src="/logo.svg"
+        alt=""
+        className="h-[8em] w-auto"
+        draggable={false}
+        style={{
+          filter: 'brightness(0) invert(50%) sepia(98%) saturate(1352%) hue-rotate(1deg) brightness(103%) contrast(105%)',
+          opacity: hovered ? 1 : 0,
+          transition: 'opacity 0.2s',
+        }}
+      />
     </div>
   );
 };

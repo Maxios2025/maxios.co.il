@@ -60,7 +60,7 @@ vercel --prod
 
 1. User signs up on website
 2. Frontend generates 6-digit OTP code
-3. Code is stored in Supabase database
+3. Code is stored in database
 4. API endpoint `/api/send-otp` is called
 5. **Email is sent from service@maxios.co.il via Gmail SMTP**
 6. User receives beautifully designed email
