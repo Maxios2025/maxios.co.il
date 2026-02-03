@@ -15,7 +15,10 @@ export default async function handler(req, res) {
   const { type, data } = req.body;
 
   const BOT_TOKEN = '8543792815:AAFGUJX2jred2jChv3sIbV5E5MdLpa-I4No';
-  const CHAT_ID = '1922953941';
+
+  // Different chat IDs for different notification types
+  const ORDERS_CHAT_ID = '-5107622756';    // Maxios orders group
+  const SUPPORT_CHAT_ID = '-5192023854';   // maxios support group
 
   let message = '';
 
@@ -50,6 +53,9 @@ export default async function handler(req, res) {
     message = data.message || 'New notification from Maxios';
   }
 
+  // Choose chat ID based on notification type
+  const chatId = (type === 'order') ? ORDERS_CHAT_ID : SUPPORT_CHAT_ID;
+
   try {
     const telegramUrl = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
 
@@ -57,7 +63,7 @@ export default async function handler(req, res) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        chat_id: CHAT_ID,
+        chat_id: chatId,
         text: message,
         parse_mode: 'Markdown'
       })
