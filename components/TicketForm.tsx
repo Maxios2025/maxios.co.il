@@ -159,8 +159,25 @@ export const TicketForm: React.FC<TicketFormProps> = ({ lang, category, onBack }
     e.preventDefault();
     setIsSubmitting(true);
 
-    // Simulate API call
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    // Send Telegram notification
+    try {
+      await fetch('/api/send-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'ticket',
+          data: {
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone,
+            subject: `[${category.toUpperCase()}] ${formData.subject}`,
+            message: `📦 Product: ${formData.productModel}\n📅 Purchase Date: ${formData.purchaseDate || 'N/A'}\n🔢 Order #: ${formData.orderNumber || 'N/A'}\n\n${formData.description}`
+          }
+        })
+      });
+    } catch (err) {
+      console.error('Failed to send notification:', err);
+    }
 
     setIsSubmitting(false);
     setSubmitted(true);

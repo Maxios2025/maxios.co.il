@@ -51,6 +51,32 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
     he: { payNow: "שלם עכשיו", processing: "מעבד...", securePayment: "תשלום מאובטח" }
   }[lang];
 
+  // Send Telegram notification for new order
+  const sendOrderNotification = async () => {
+    try {
+      const itemsList = cartItems.map(item => `• ${item.name} x${item.qty} - ${item.price}`).join('\n');
+      await fetch('/api/send-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'order',
+          data: {
+            customerName: customerInfo.name,
+            customerEmail: customerInfo.email,
+            customerPhone: customerInfo.phone,
+            address: customerInfo.address,
+            city: customerInfo.city,
+            zip: customerInfo.zip,
+            items: itemsList,
+            total: totalAmount
+          }
+        })
+      });
+    } catch (err) {
+      console.error('Failed to send notification:', err);
+    }
+  };
+
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
 
@@ -85,6 +111,8 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
       onError(error.message || 'Payment failed');
       setIsProcessing(false);
     } else {
+      // Send Telegram notification on successful payment
+      await sendOrderNotification();
       onSuccess();
       setIsProcessing(false);
     }

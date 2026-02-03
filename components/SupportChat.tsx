@@ -232,6 +232,25 @@ export const SupportChat: React.FC<SupportChatProps> = ({ lang, setActiveView, i
     }
 
     if (isAgentMode) {
+      // Send message to Telegram
+      try {
+        fetch('/api/send-telegram', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            type: 'contact',
+            data: {
+              name: 'Support Chat User',
+              email: 'Via Chat Widget',
+              phone: '',
+              message: userMsg
+            }
+          })
+        });
+      } catch (err) {
+        console.error('Failed to send to Telegram:', err);
+      }
+
       setTimeout(() => {
         setMessages(prev => [...prev, {
           role: 'assistant',
