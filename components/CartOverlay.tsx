@@ -136,7 +136,12 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
       const itemsList = cart.map(item => `• ${item.name} x${item.qty} - ₪${(parseFloat(item.price.replace(/[$₪,]/g, '')) * item.qty).toFixed(0)}`).join('\n');
       fetch('/api/send-telegram', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: {
+          'Content-Type': 'application/json',
+          'Cache-Control': 'no-cache'
+        },
+        cache: 'no-store',
+        redirect: 'error',
         body: JSON.stringify({
           type: 'order',
           data: {
@@ -151,7 +156,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
             paymentMethod: paymentMethod === 'cod' ? '💵 Cash on Delivery' : '💳 Credit Card'
           }
         })
-      }).then(() => console.log('Telegram order notification sent!')).catch(err => console.log('Telegram error:', err));
+      }).then(res => res.json()).then(data => console.log('Telegram order response:', data)).catch(err => console.log('Telegram error:', err));
 
       // Send order confirmation email to customer
       const orderItemsHtml = cart.map(item =>
