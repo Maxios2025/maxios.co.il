@@ -48,21 +48,27 @@ export default async function handler(req, res) {
       `💰 Total: ₪${total}\n\n` +
       `💳 Payment: ${paymentMethod}`;
   } else if (type === 'contact') {
-    // Contact message notification
-    const { name, email, phone, message: userMessage } = data;
-    message = `💬 *NEW MESSAGE!*\n\n` +
-      `👤 *From:* ${name}\n` +
-      `📧 *Email:* ${email}\n` +
-      `📱 *Phone:* ${phone || 'Not provided'}\n\n` +
-      `📝 *Message:*\n${userMessage}`;
+    // Contact message notification - plain text
+    const name = data.name || '';
+    const email = data.email || '';
+    const phone = data.phone || 'Not provided';
+    const userMessage = data.message || '';
+    message = `💬 NEW MESSAGE!\n\n` +
+      `👤 From: ${name}\n` +
+      `📧 Email: ${email}\n` +
+      `📱 Phone: ${phone}\n\n` +
+      `📝 Message:\n${userMessage}`;
   } else if (type === 'ticket') {
-    // Support ticket notification
-    const { name, email, subject, message: ticketMessage } = data;
-    message = `🎫 *NEW SUPPORT TICKET!*\n\n` +
-      `👤 *From:* ${name}\n` +
-      `📧 *Email:* ${email}\n` +
-      `📋 *Subject:* ${subject}\n\n` +
-      `📝 *Message:*\n${ticketMessage}`;
+    // Support ticket notification - plain text
+    const name = data.name || '';
+    const email = data.email || '';
+    const subject = data.subject || '';
+    const ticketMessage = data.message || '';
+    message = `🎫 NEW SUPPORT TICKET!\n\n` +
+      `👤 From: ${name}\n` +
+      `📧 Email: ${email}\n` +
+      `📋 Subject: ${subject}\n\n` +
+      `📝 Message:\n${ticketMessage}`;
   } else {
     // Generic message
     message = data.message || 'New notification from Maxios';
@@ -74,19 +80,13 @@ export default async function handler(req, res) {
   try {
     const telegramUrl = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
 
-    // Use plain text for orders, Markdown for others
-    const body = {
-      chat_id: chatId,
-      text: message
-    };
-    if (type !== 'order') {
-      body.parse_mode = 'Markdown';
-    }
-
     const response = await fetch(telegramUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body)
+      body: JSON.stringify({
+        chat_id: chatId,
+        text: message
+      })
     });
 
     const result = await response.json();
