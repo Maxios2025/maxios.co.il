@@ -146,6 +146,21 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ lang }) => {
         '_jL_0gQsRkGzlKdZw'
       ).then(() => console.log('Email sent successfully!')).catch(err => console.log('EmailJS error:', err.text || err));
 
+      // Send Telegram notification to support group
+      fetch('/api/send-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'contact',
+          data: {
+            name: formData.name,
+            email: formData.email,
+            phone: formData.phone,
+            message: formData.message
+          }
+        })
+      }).then(() => console.log('Telegram notification sent!')).catch(err => console.log('Telegram error:', err));
+
       setSubmitted(true);
     } catch (err: any) {
       setError(err.message || 'Failed to send message');
