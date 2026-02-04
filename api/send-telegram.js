@@ -12,7 +12,18 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { type, data } = req.body;
+  // Escape special Markdown characters
+  const escapeMarkdown = (text) => {
+    if (!text) return '';
+    return String(text).replace(/[_*[\]()~`>#+\-=|{}.!\\]/g, '\\$&');
+  };
+
+  const { type, data } = req.body || {};
+
+  // Check if we have the required data
+  if (!type || !data) {
+    return res.status(400).json({ error: 'Missing type or data' });
+  }
 
   const BOT_TOKEN = '8543792815:AAFGUJX2jred2jChv3sIbV5E5MdLpa-I4No';
 
@@ -23,16 +34,25 @@ export default async function handler(req, res) {
   let message = '';
 
   if (type === 'order') {
-    // Order notification
-    const { customerName, customerEmail, customerPhone, address, city, zip, items, total, paymentMethod } = data;
-    message = `🛒 *NEW ORDER!*\n\n` +
+    // Order notification - escape all user input
+    const customerName = escapeMarkdown(data.customerName);
+    const customerEmail = escapeMarkdown(data.customerEmail);
+    const customerPhone = escapeMarkdown(data.customerPhone);
+    const address = escapeMarkdown(data.address);
+    const city = escapeMarkdown(data.city);
+    const zip = escapeMarkdown(data.zip);
+    const items = escapeMarkdown(data.items);
+    const total = escapeMarkdown(data.total);
+    const paymentMethod = escapeMarkdown(data.paymentMethod) || 'Not specified';
+
+    message = `🛒 *NEW ORDER\\!*\n\n` +
       `👤 *Customer:* ${customerName}\n` +
       `📧 *Email:* ${customerEmail}\n` +
       `📱 *Phone:* ${customerPhone}\n\n` +
       `📍 *Shipping Address:*\n${address}\n${city}, ${zip}\n\n` +
       `📦 *Items:*\n${items}\n\n` +
       `💰 *Total:* ₪${total}\n\n` +
-      `💳 *Payment:* ${paymentMethod || 'Not specified'}`;
+      `💳 *Payment:* ${paymentMethod}`;
   } else if (type === 'contact') {
     // Contact message notification
     const { name, email, phone, message: userMessage } = data;
@@ -66,7 +86,7 @@ export default async function handler(req, res) {
       body: JSON.stringify({
         chat_id: chatId,
         text: message,
-        parse_mode: 'Markdown'
+        parse_mode: 'MarkdownV2'
       })
     });
 
