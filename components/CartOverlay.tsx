@@ -132,6 +132,27 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
         }
       });
 
+      // Send Telegram notification to orders group
+      const itemsList = cart.map(item => `• ${item.name} x${item.qty} - ₪${(parseFloat(item.price.replace(/[$₪,]/g, '')) * item.qty).toFixed(0)}`).join('\n');
+      fetch('/api/send-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'order',
+          data: {
+            customerName: customerName,
+            customerEmail: customerEmail,
+            customerPhone: customerPhone,
+            address: customerStreet,
+            city: customerCity,
+            zip: customerZip,
+            items: itemsList,
+            total: total.toFixed(0),
+            paymentMethod: paymentMethod === 'cod' ? '💵 Cash on Delivery' : '💳 Credit Card'
+          }
+        })
+      }).then(() => console.log('Telegram order notification sent!')).catch(err => console.log('Telegram error:', err));
+
       // Send order confirmation email to customer
       const orderItemsHtml = cart.map(item =>
         `${item.name} x${item.qty} - ₪${(parseFloat(item.price.replace(/[$₪,]/g, '')) * item.qty).toFixed(0)}`

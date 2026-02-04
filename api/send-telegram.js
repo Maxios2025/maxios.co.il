@@ -24,14 +24,15 @@ export default async function handler(req, res) {
 
   if (type === 'order') {
     // Order notification
-    const { customerName, customerEmail, customerPhone, address, city, zip, items, total } = data;
+    const { customerName, customerEmail, customerPhone, address, city, zip, items, total, paymentMethod } = data;
     message = `🛒 *NEW ORDER!*\n\n` +
       `👤 *Customer:* ${customerName}\n` +
       `📧 *Email:* ${customerEmail}\n` +
       `📱 *Phone:* ${customerPhone}\n\n` +
       `📍 *Shipping Address:*\n${address}\n${city}, ${zip}\n\n` +
       `📦 *Items:*\n${items}\n\n` +
-      `💰 *Total:* ₪${total}`;
+      `💰 *Total:* ₪${total}\n\n` +
+      `💳 *Payment:* ${paymentMethod || 'Not specified'}`;
   } else if (type === 'contact') {
     // Contact message notification
     const { name, email, phone, message: userMessage } = data;
