@@ -77,8 +77,8 @@ export default async function handler(req, res) {
     message = data.message || 'New notification from Maxios';
   }
 
-  // Send ALL notifications to support group for testing
-  const chatId = SUPPORT_CHAT_ID;
+  // Choose chat ID based on notification type
+  const chatId = (type === 'order') ? ORDERS_CHAT_ID : SUPPORT_CHAT_ID;
 
   try {
     const telegramUrl = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
