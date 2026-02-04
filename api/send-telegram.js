@@ -12,12 +12,6 @@ export default async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  // Escape special Markdown characters
-  const escapeMarkdown = (text) => {
-    if (!text) return '';
-    return String(text).replace(/[_*[\]()~`>#+\-=|{}.!\\]/g, '\\$&');
-  };
-
   const { type, data } = req.body || {};
 
   // Check if we have the required data
@@ -34,25 +28,25 @@ export default async function handler(req, res) {
   let message = '';
 
   if (type === 'order') {
-    // Order notification - escape all user input
-    const customerName = escapeMarkdown(data.customerName);
-    const customerEmail = escapeMarkdown(data.customerEmail);
-    const customerPhone = escapeMarkdown(data.customerPhone);
-    const address = escapeMarkdown(data.address);
-    const city = escapeMarkdown(data.city);
-    const zip = escapeMarkdown(data.zip);
-    const items = escapeMarkdown(data.items);
-    const total = escapeMarkdown(data.total);
-    const paymentMethod = escapeMarkdown(data.paymentMethod) || 'Not specified';
+    // Order notification - plain text (no markdown)
+    const customerName = data.customerName || '';
+    const customerEmail = data.customerEmail || '';
+    const customerPhone = data.customerPhone || '';
+    const address = data.address || '';
+    const city = data.city || '';
+    const zip = data.zip || '';
+    const items = data.items || '';
+    const total = data.total || '';
+    const paymentMethod = data.paymentMethod || 'Not specified';
 
-    message = `🛒 *NEW ORDER\\!*\n\n` +
-      `👤 *Customer:* ${customerName}\n` +
-      `📧 *Email:* ${customerEmail}\n` +
-      `📱 *Phone:* ${customerPhone}\n\n` +
-      `📍 *Shipping Address:*\n${address}\n${city}, ${zip}\n\n` +
-      `📦 *Items:*\n${items}\n\n` +
-      `💰 *Total:* ₪${total}\n\n` +
-      `💳 *Payment:* ${paymentMethod}`;
+    message = `🛒 NEW ORDER!\n\n` +
+      `👤 Customer: ${customerName}\n` +
+      `📧 Email: ${customerEmail}\n` +
+      `📱 Phone: ${customerPhone}\n\n` +
+      `📍 Shipping Address:\n${address}\n${city}, ${zip}\n\n` +
+      `📦 Items:\n${items}\n\n` +
+      `💰 Total: ₪${total}\n\n` +
+      `💳 Payment: ${paymentMethod}`;
   } else if (type === 'contact') {
     // Contact message notification
     const { name, email, phone, message: userMessage } = data;
@@ -80,14 +74,19 @@ export default async function handler(req, res) {
   try {
     const telegramUrl = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
 
+    // Use plain text for orders, Markdown for others
+    const body = {
+      chat_id: chatId,
+      text: message
+    };
+    if (type !== 'order') {
+      body.parse_mode = 'Markdown';
+    }
+
     const response = await fetch(telegramUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        chat_id: chatId,
-        text: message,
-        parse_mode: 'MarkdownV2'
-      })
+      body: JSON.stringify(body)
     });
 
     const result = await response.json();
