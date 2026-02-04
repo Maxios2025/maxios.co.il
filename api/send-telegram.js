@@ -14,9 +14,12 @@ export default async function handler(req, res) {
 
   const { type, data } = req.body || {};
 
+  // Log what we received
+  console.log('Telegram API received:', { type, hasData: !!data });
+
   // Check if we have the required data
   if (!type || !data) {
-    return res.status(400).json({ error: 'Missing type or data' });
+    return res.status(400).json({ error: 'Missing type or data', received: { type, data } });
   }
 
   const BOT_TOKEN = '8543792815:AAFGUJX2jred2jChv3sIbV5E5MdLpa-I4No';
