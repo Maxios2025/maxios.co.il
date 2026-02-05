@@ -32,6 +32,7 @@ export default async function handler(req, res) {
 
   if (type === 'order') {
     // Order notification - plain text (no markdown)
+    const orderNumber = data.orderNumber || 'N/A';
     const customerName = data.customerName || '';
     const customerEmail = data.customerEmail || '';
     const customerPhone = data.customerPhone || '';
@@ -43,6 +44,7 @@ export default async function handler(req, res) {
     const paymentMethod = data.paymentMethod || 'Not specified';
 
     message = `🛒 NEW ORDER!\n\n` +
+      `🔢 Order Number: ${orderNumber}\n\n` +
       `👤 Customer: ${customerName}\n` +
       `📧 Email: ${customerEmail}\n` +
       `📱 Phone: ${customerPhone}\n\n` +

@@ -145,6 +145,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
         body: JSON.stringify({
           type: 'order',
           data: {
+            orderNumber: orderNumber,
             customerName: customerName,
             customerEmail: customerEmail,
             customerPhone: customerPhone,

@@ -54,6 +54,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
   // Send Telegram notification for new order
   const sendOrderNotification = async () => {
     try {
+      const orderNumber = `MX-${Date.now().toString(36).toUpperCase()}`;
       const itemsList = cartItems.map(item => `• ${item.name} x${item.qty} - ${item.price}`).join('\n');
       await fetch('/api/send-telegram', {
         method: 'POST',
@@ -61,6 +62,7 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
         body: JSON.stringify({
           type: 'order',
           data: {
+            orderNumber: orderNumber,
             customerName: customerInfo.name,
             customerEmail: customerInfo.email,
             customerPhone: customerInfo.phone,
@@ -68,7 +70,8 @@ const CheckoutForm: React.FC<CheckoutFormProps> = ({
             city: customerInfo.city,
             zip: customerInfo.zip,
             items: itemsList,
-            total: totalAmount
+            total: totalAmount,
+            paymentMethod: '💳 Credit Card'
           }
         })
       });
@@ -210,7 +213,11 @@ export const StripeCheckout: React.FC<StripeCheckoutProps> = ({
       zip: "ZIP CODE",
       continue: "CONTINUE TO PAYMENT",
       back: "BACK",
-      required: "Required"
+      required: "Required",
+      errPhone: "Phone must be 10 digits",
+      errEmail: "Email must contain @",
+      errName: "Name cannot contain numbers",
+      errZip: "Zip code must be 5 or 7 digits"
     },
     ar: {
       customerInfo: "معلومات العميل",
@@ -223,7 +230,11 @@ export const StripeCheckout: React.FC<StripeCheckoutProps> = ({
       zip: "الرمز البريدي",
       continue: "المتابعة للدفع",
       back: "رجوع",
-      required: "مطلوب"
+      required: "مطلوب",
+      errPhone: "يجب أن يتكون رقم الهاتف من 10 أرقام",
+      errEmail: "البريد الإلكتروني يجب أن يحتوي على @",
+      errName: "الاسم لا يمكن أن يحتوي على أرقام",
+      errZip: "الرمز البريدي يجب أن يكون 5 أو 7 أرقام"
     },
     he: {
       customerInfo: "פרטי לקוח",
@@ -236,7 +247,11 @@ export const StripeCheckout: React.FC<StripeCheckoutProps> = ({
       zip: "מיקוד",
       continue: "המשך לתשלום",
       back: "חזור",
-      required: "שדה חובה"
+      required: "שדה חובה",
+      errPhone: "מספר טלפון חייב להיות 10 ספרות",
+      errEmail: "אימייל חייב להכיל @",
+      errName: "שם לא יכול להכיל מספרים",
+      errZip: "מיקוד חייב להיות 5 או 7 ספרות"
     }
   }[lang];
 
@@ -245,15 +260,76 @@ export const StripeCheckout: React.FC<StripeCheckoutProps> = ({
   const bgInput = theme === 'dark' ? 'bg-white/5' : 'bg-black/5';
   const labelColor = theme === 'dark' ? 'text-white/40' : 'text-black/50';
 
+  // Handle name change - remove numbers
+  const handleNameChange = (value: string) => {
+    const cleanName = value.replace(/[0-9]/g, '');
+    setCustomerInfo({...customerInfo, name: cleanName});
+    if (/\d/.test(value)) {
+      setFormErrors(prev => ({...prev, name: t.errName}));
+    } else {
+      setFormErrors(prev => {
+        const { name, ...rest } = prev;
+        return rest;
+      });
+    }
+  };
+
+  // Handle phone change - only digits, max 10
+  const handlePhoneChange = (value: string) => {
+    const digitsOnly = value.replace(/\D/g, '').slice(0, 10);
+    setCustomerInfo({...customerInfo, phone: digitsOnly});
+    // Clear error while typing
+    if (formErrors.phone) setFormErrors(prev => { const { phone, ...rest } = prev; return rest; });
+  };
+
+  // Handle email change - validate format
+  const handleEmailChange = (value: string) => {
+    const cleanEmail = value.replace(/\s/g, '');
+    setCustomerInfo({...customerInfo, email: cleanEmail});
+    // Clear error while typing
+    if (formErrors.email) setFormErrors(prev => { const { email, ...rest } = prev; return rest; });
+  };
+
+  // Handle zip change - only digits
+  const handleZipChange = (value: string) => {
+    const digitsOnly = value.replace(/\D/g, '').slice(0, 7);
+    setCustomerInfo({...customerInfo, zip: digitsOnly});
+    // Clear error while typing
+    if (formErrors.zip) setFormErrors(prev => { const { zip, ...rest } = prev; return rest; });
+  };
+
+  // Validate on blur (when user leaves the field)
+  const handlePhoneBlur = () => {
+    if (customerInfo.phone.length > 0 && customerInfo.phone.length !== 10) {
+      setFormErrors(prev => ({...prev, phone: t.errPhone}));
+    }
+  };
+
+  const handleEmailBlur = () => {
+    if (customerInfo.email.length > 0 && !customerInfo.email.includes('@')) {
+      setFormErrors(prev => ({...prev, email: t.errEmail}));
+    }
+  };
+
+  const handleZipBlur = () => {
+    const len = customerInfo.zip.length;
+    if (len > 0 && len !== 5 && len !== 7) {
+      setFormErrors(prev => ({...prev, zip: t.errZip}));
+    }
+  };
+
   // Validate customer info
   const validateInfo = () => {
     const errors: {[key: string]: string} = {};
     if (!customerInfo.name.trim()) errors.name = t.required;
-    if (!customerInfo.email.trim() || !customerInfo.email.includes('@')) errors.email = t.required;
-    if (!customerInfo.phone.trim()) errors.phone = t.required;
+    if (/\d/.test(customerInfo.name)) errors.name = t.errName;
+    if (!customerInfo.email.trim() || !customerInfo.email.includes('@')) errors.email = t.errEmail;
+    const phoneDigits = customerInfo.phone.replace(/\D/g, '');
+    if (phoneDigits.length !== 10) errors.phone = t.errPhone;
     if (!customerInfo.address.trim()) errors.address = t.required;
     if (!customerInfo.city.trim()) errors.city = t.required;
-    if (!customerInfo.zip.trim()) errors.zip = t.required;
+    const zipDigits = customerInfo.zip.replace(/\D/g, '');
+    if (zipDigits.length !== 5 && zipDigits.length !== 7) errors.zip = t.errZip;
     setFormErrors(errors);
     return Object.keys(errors).length === 0;
   };
@@ -326,7 +402,7 @@ export const StripeCheckout: React.FC<StripeCheckoutProps> = ({
               <label className={`text-[10px] font-black tracking-widest ${labelColor} uppercase block mb-2`}>{t.name}</label>
               <input
                 value={customerInfo.name}
-                onChange={e => setCustomerInfo({...customerInfo, name: e.target.value})}
+                onChange={e => handleNameChange(e.target.value)}
                 placeholder="John Doe"
                 className={`w-full ${bgInput} border ${formErrors.name ? 'border-red-500' : borderColor} p-4 ${textColor} text-sm outline-none focus:border-orange-500 uppercase font-bold`}
               />
@@ -337,7 +413,8 @@ export const StripeCheckout: React.FC<StripeCheckoutProps> = ({
               <input
                 type="email"
                 value={customerInfo.email}
-                onChange={e => setCustomerInfo({...customerInfo, email: e.target.value})}
+                onChange={e => handleEmailChange(e.target.value)}
+                onBlur={handleEmailBlur}
                 placeholder="john@example.com"
                 className={`w-full ${bgInput} border ${formErrors.email ? 'border-red-500' : borderColor} p-4 ${textColor} text-sm outline-none focus:border-orange-500`}
               />
@@ -348,8 +425,10 @@ export const StripeCheckout: React.FC<StripeCheckoutProps> = ({
               <input
                 type="tel"
                 value={customerInfo.phone}
-                onChange={e => setCustomerInfo({...customerInfo, phone: e.target.value})}
-                placeholder="05X-XXX-XXXX"
+                onChange={e => handlePhoneChange(e.target.value)}
+                onBlur={handlePhoneBlur}
+                placeholder="0501234567"
+                maxLength={10}
                 className={`w-full ${bgInput} border ${formErrors.phone ? 'border-red-500' : borderColor} p-4 ${textColor} text-sm outline-none focus:border-orange-500`}
               />
               {formErrors.phone && <p className="text-red-500 text-xs mt-1">{formErrors.phone}</p>}
@@ -388,8 +467,10 @@ export const StripeCheckout: React.FC<StripeCheckoutProps> = ({
                 <label className={`text-[10px] font-black tracking-widest ${labelColor} uppercase block mb-2`}>{t.zip}</label>
                 <input
                   value={customerInfo.zip}
-                  onChange={e => setCustomerInfo({...customerInfo, zip: e.target.value})}
+                  onChange={e => handleZipChange(e.target.value)}
+                  onBlur={handleZipBlur}
                   placeholder="1234567"
+                  maxLength={7}
                   className={`w-full ${bgInput} border ${formErrors.zip ? 'border-red-500' : borderColor} p-4 ${textColor} text-sm outline-none focus:border-orange-500`}
                 />
                 {formErrors.zip && <p className="text-red-500 text-xs mt-1">{formErrors.zip}</p>}
