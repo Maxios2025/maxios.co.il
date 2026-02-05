@@ -163,10 +163,16 @@ export default async function handler(req, res) {
 
         console.log('Firestore response:', JSON.stringify(data).substring(0, 500));
 
+        // Check for errors
+        if (data.error) {
+          await sendMessage(chatId, `❌ Firebase error: ${data.error.message || JSON.stringify(data.error)}`);
+          return res.status(200).json({ ok: true });
+        }
+
         const orders = (data.documents || []).map(doc => parseFirestoreDoc(doc));
 
         if (orders.length === 0) {
-          await sendMessage(chatId, '📭 No orders found.');
+          await sendMessage(chatId, `📭 No orders found in database.\n\nDebug: ${JSON.stringify(data).substring(0, 200)}`);
           return res.status(200).json({ ok: true });
         }
 
