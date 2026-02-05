@@ -136,29 +136,30 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
 
       // Send Telegram notification to orders group
       const itemsList = cart.map(item => `• ${item.name} x${item.qty} - ₪${(parseFloat(item.price.replace(/[$₪,]/g, '')) * item.qty).toFixed(0)}`).join('\n');
+      const telegramPayload = {
+        type: 'order',
+        data: {
+          orderNumber: currentOrderNumber,
+          customerName: customerName,
+          customerEmail: customerEmail,
+          customerPhone: customerPhone,
+          address: customerStreet,
+          city: customerCity,
+          zip: customerZip,
+          items: itemsList,
+          total: total.toFixed(0),
+          paymentMethod: paymentMethod === 'cod' ? '💵 Cash on Delivery' : '💳 Credit Card'
+        }
+      };
+      console.log('=== FRONTEND DEBUG ===');
+      console.log('Generated orderNumber:', currentOrderNumber);
+      console.log('Full telegramPayload:', JSON.stringify(telegramPayload, null, 2));
+      console.log('======================');
+
       fetch('/api/send-telegram', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Cache-Control': 'no-cache'
-        },
-        cache: 'no-store',
-        redirect: 'error',
-        body: JSON.stringify({
-          type: 'order',
-          data: {
-            orderNumber: currentOrderNumber,
-            customerName: customerName,
-            customerEmail: customerEmail,
-            customerPhone: customerPhone,
-            address: customerStreet,
-            city: customerCity,
-            zip: customerZip,
-            items: itemsList,
-            total: total.toFixed(0),
-            paymentMethod: paymentMethod === 'cod' ? '💵 Cash on Delivery' : '💳 Credit Card'
-          }
-        })
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(telegramPayload)
       }).then(res => res.json()).then(data => console.log('Telegram order response:', data)).catch(err => console.log('Telegram error:', err));
 
       // Send order confirmation email to customer

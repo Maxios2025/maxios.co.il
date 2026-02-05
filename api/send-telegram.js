@@ -17,8 +17,13 @@ export default async function handler(req, res) {
 
   const { type, data } = req.body || {};
 
-  // Log what we received
-  console.log('Telegram API received:', { type, hasData: !!data });
+  // Log EVERYTHING we received for debugging
+  console.log('=== TELEGRAM API DEBUG ===');
+  console.log('Full req.body:', JSON.stringify(req.body));
+  console.log('type:', type);
+  console.log('data:', JSON.stringify(data));
+  console.log('data.orderNumber:', data?.orderNumber);
+  console.log('=========================');
 
   // Check if we have the required data
   if (!type || !data) {
@@ -35,7 +40,9 @@ export default async function handler(req, res) {
 
   if (type === 'order') {
     // Order notification - plain text (no markdown)
+    console.log('Processing ORDER - raw orderNumber value:', data.orderNumber, 'type:', typeof data.orderNumber);
     const orderNumber = data.orderNumber || 'N/A';
+    console.log('Final orderNumber:', orderNumber);
     const customerName = data.customerName || '';
     const customerEmail = data.customerEmail || '';
     const customerPhone = data.customerPhone || '';
