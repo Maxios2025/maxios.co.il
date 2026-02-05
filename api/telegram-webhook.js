@@ -1,86 +1,8 @@
-// Firebase REST API - no admin SDK needed
-const FIREBASE_PROJECT_ID = process.env.VITE_FIREBASE_PROJECT_ID || 'maxios-add9e';
-const FIREBASE_API_KEY = process.env.VITE_FIREBASE_API_KEY || 'AIzaSyDCsrfTsDea9YIEtNyVmn1Nv7hQ4-hl5w';
+// Google Sheets Web App URL for fetching orders
+const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzIvC2vKmYaF-Q0cTSHXbJaZjchMRocwjOR0Ko6GqvMCUC5aAuV7--to-CEMgBSlj41/exec';
 
 const BOT_TOKEN = '8543792815:AAFGUJX2jred2jChv3sIbV5E5MdLpa-I4No';
 const ORDERS_CHAT_ID = '-5107622756';
-
-// Generate CSV content from orders
-function generateCSV(orders) {
-  const headers = [
-    'Order Number',
-    'Date',
-    'Customer Name',
-    'Email',
-    'Phone',
-    'City',
-    'Street',
-    'Zip',
-    'Items',
-    'Subtotal',
-    'Discount',
-    'Promo Code',
-    'Total',
-    'Payment Method',
-    'Status'
-  ];
-
-  const rows = orders.map(order => [
-    order.orderNumber || '',
-    order.createdAt ? new Date(order.createdAt).toLocaleDateString('he-IL') : '',
-    order.customer?.name || '',
-    order.customer?.email || '',
-    order.customer?.phone || '',
-    order.customer?.city || '',
-    order.customer?.street || '',
-    order.customer?.zip || '',
-    (order.items || []).map(item => `${item.name} x${item.qty}`).join('; '),
-    order.subtotal || '',
-    order.discount || '0',
-    order.promoCode || '',
-    order.total || '',
-    order.paymentMethod || '',
-    order.status || ''
-  ]);
-
-  const escapeCSV = (value) => {
-    const str = String(value);
-    if (str.includes(',') || str.includes('"') || str.includes('\n')) {
-      return `"${str.replace(/"/g, '""')}"`;
-    }
-    return str;
-  };
-
-  const csvContent = [
-    headers.map(escapeCSV).join(','),
-    ...rows.map(row => row.map(escapeCSV).join(','))
-  ].join('\n');
-
-  return '\uFEFF' + csvContent;
-}
-
-// Parse Firestore document to regular object
-function parseFirestoreDoc(doc) {
-  const fields = doc.fields || {};
-  const result = {};
-  for (const [key, value] of Object.entries(fields)) {
-    result[key] = parseFirestoreValue(value);
-  }
-  return result;
-}
-
-function parseFirestoreValue(value) {
-  if (value.stringValue !== undefined) return value.stringValue;
-  if (value.integerValue !== undefined) return parseInt(value.integerValue);
-  if (value.doubleValue !== undefined) return value.doubleValue;
-  if (value.booleanValue !== undefined) return value.booleanValue;
-  if (value.nullValue !== undefined) return null;
-  if (value.mapValue) return parseFirestoreDoc(value.mapValue);
-  if (value.arrayValue) {
-    return (value.arrayValue.values || []).map(parseFirestoreValue);
-  }
-  return null;
-}
 
 // Send text message
 async function sendMessage(chatId, text) {
@@ -99,6 +21,9 @@ async function sendDocument(chatId, csvContent, filename) {
   // Create multipart form data manually
   const boundary = '----WebKitFormBoundary' + Math.random().toString(36).substring(2);
 
+  // Add BOM for Excel Hebrew support
+  const csvWithBOM = '\uFEFF' + csvContent;
+
   const bodyParts = [
     `--${boundary}\r\n`,
     `Content-Disposition: form-data; name="chat_id"\r\n\r\n`,
@@ -106,7 +31,7 @@ async function sendDocument(chatId, csvContent, filename) {
     `--${boundary}\r\n`,
     `Content-Disposition: form-data; name="document"; filename="${filename}"\r\n`,
     `Content-Type: text/csv\r\n\r\n`,
-    csvContent,
+    csvWithBOM,
     `\r\n--${boundary}\r\n`,
     `Content-Disposition: form-data; name="caption"\r\n\r\n`,
     `📊 Orders Export - ${new Date().toLocaleDateString('he-IL')}\r\n`,
@@ -154,41 +79,30 @@ export default async function handler(req, res) {
           return res.status(200).json({ ok: true });
         }
 
-        await sendMessage(chatId, '⏳ Generating orders export...');
+        await sendMessage(chatId, '⏳ Fetching orders from Google Sheets...');
 
-        // Fetch orders from Firestore REST API with API key
-        const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/orders?key=${FIREBASE_API_KEY}`;
-        const response = await fetch(url);
-        const data = await response.json();
+        // Fetch CSV directly from Google Sheets
+        const response = await fetch(GOOGLE_SHEETS_URL);
+        const csvContent = await response.text();
 
-        console.log('Firestore response:', JSON.stringify(data).substring(0, 500));
-
-        // Check for errors
-        if (data.error) {
-          await sendMessage(chatId, `❌ Firebase error: ${data.error.message || JSON.stringify(data.error)}`);
+        // Check if we got data
+        const lines = csvContent.trim().split('\n');
+        if (lines.length <= 1) {
+          await sendMessage(chatId, '📭 No orders found in Google Sheets yet.');
           return res.status(200).json({ ok: true });
         }
 
-        const orders = (data.documents || []).map(doc => parseFirestoreDoc(doc));
-
-        if (orders.length === 0) {
-          await sendMessage(chatId, `📭 No orders found in database.\n\nDebug: ${JSON.stringify(data).substring(0, 200)}`);
-          return res.status(200).json({ ok: true });
-        }
-
-        // Sort by date (newest first)
-        orders.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-        // Generate CSV
-        const csv = generateCSV(orders);
+        const orderCount = lines.length - 1; // Subtract header row
         const filename = `maxios_orders_${new Date().toISOString().split('T')[0]}.csv`;
 
         // Send the file
-        const result = await sendDocument(chatId, csv, filename);
+        const result = await sendDocument(chatId, csvContent, filename);
 
         if (!result.ok) {
           console.error('Failed to send document:', result);
-          await sendMessage(chatId, `✅ Export ready! ${orders.length} orders found.\n\n📥 Download: https://maxios.co.il/api/export-orders`);
+          await sendMessage(chatId, `❌ Failed to send file. Error: ${JSON.stringify(result)}`);
+        } else {
+          await sendMessage(chatId, `✅ Export complete! ${orderCount} orders exported.`);
         }
 
         return res.status(200).json({ ok: true });

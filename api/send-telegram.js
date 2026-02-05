@@ -1,3 +1,6 @@
+// Google Sheets Web App URL for storing orders
+const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzIvC2vKmYaF-Q0cTSHXbJaZjchMRocwjOR0Ko6GqvMCUC5aAuV7--to-CEMgBSlj41/exec';
+
 export default async function handler(req, res) {
   // Set CORS headers
   res.setHeader('Access-Control-Allow-Origin', '*');
@@ -112,6 +115,29 @@ export default async function handler(req, res) {
         headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
         body: bodyParts.join('')
       });
+
+      // Save order to Google Sheets
+      try {
+        await fetch(GOOGLE_SHEETS_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            orderNumber,
+            customerName,
+            customerEmail,
+            customerPhone,
+            city,
+            address,
+            zip,
+            items: items.replace(/\n/g, '; '),
+            total,
+            paymentMethod: paymentMethod.replace(/[💵💳]/g, '').trim()
+          })
+        });
+        console.log('Order saved to Google Sheets');
+      } catch (sheetError) {
+        console.error('Failed to save to Google Sheets:', sheetError);
+      }
 
       return res.status(200).json({ success: true });
     } catch (error) {
