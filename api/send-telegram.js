@@ -1,5 +1,5 @@
 // Google Sheets Web App URL for storing orders
-const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbwsiVY5vJ67lcVhEnYSY31-_h-3ASASvM9WBbQjBmJZQ7Lo0JYc7O-SlAiYXGgv6ZO4/exec';
+const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzsIJQvWBVDI4MWVp195oQDv0rnNYG32GCGQ8GVIXBSCkB8amDDq6CXly-7wYA24BcT/exec';
 
 export default async function handler(req, res) {
   // Set CORS headers
