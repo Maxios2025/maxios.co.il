@@ -42,6 +42,7 @@ export default async function handler(req, res) {
     const items = data.items || '';
     const total = data.total || '';
     const paymentMethod = data.paymentMethod || 'Not specified';
+    const date = new Date().toLocaleDateString('he-IL');
 
     message = `🛒 NEW ORDER!\n\n` +
       `🔢 Order Number: ${orderNumber}\n\n` +
@@ -52,6 +53,71 @@ export default async function handler(req, res) {
       `📦 Items:\n${items}\n\n` +
       `💰 Total: ₪${total}\n\n` +
       `💳 Payment: ${paymentMethod}`;
+
+    // Create CSV for this order
+    const csvHeaders = 'Order Number,Date,Customer Name,Email,Phone,City,Street,Zip,Items,Total,Payment Method';
+    const escapeCSV = (val) => {
+      const str = String(val || '');
+      if (str.includes(',') || str.includes('"') || str.includes('\n')) {
+        return `"${str.replace(/"/g, '""')}"`;
+      }
+      return str;
+    };
+    const csvRow = [
+      orderNumber,
+      date,
+      customerName,
+      customerEmail,
+      customerPhone,
+      city,
+      address,
+      zip,
+      items.replace(/\n/g, '; '),
+      total,
+      paymentMethod.replace(/[💵💳]/g, '').trim()
+    ].map(escapeCSV).join(',');
+
+    const csvContent = '\uFEFF' + csvHeaders + '\n' + csvRow;
+
+    // Send message first
+    const chatId = ORDERS_CHAT_ID;
+    try {
+      // Send text message
+      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ chat_id: chatId, text: message })
+      });
+
+      // Send CSV file
+      const boundary = '----FormBoundary' + Math.random().toString(36).substring(2);
+      const filename = `order_${orderNumber}.csv`;
+
+      const bodyParts = [
+        `--${boundary}\r\n`,
+        `Content-Disposition: form-data; name="chat_id"\r\n\r\n`,
+        `${chatId}\r\n`,
+        `--${boundary}\r\n`,
+        `Content-Disposition: form-data; name="document"; filename="${filename}"\r\n`,
+        `Content-Type: text/csv\r\n\r\n`,
+        csvContent,
+        `\r\n--${boundary}\r\n`,
+        `Content-Disposition: form-data; name="caption"\r\n\r\n`,
+        `📊 Order ${orderNumber} - ${date}\r\n`,
+        `--${boundary}--\r\n`
+      ];
+
+      await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`, {
+        method: 'POST',
+        headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
+        body: bodyParts.join('')
+      });
+
+      return res.status(200).json({ success: true });
+    } catch (error) {
+      console.error('Error sending order:', error);
+      return res.status(500).json({ error: 'Internal server error' });
+    }
   } else if (type === 'contact') {
     // Contact message notification - plain text
     const name = data.name || '';
