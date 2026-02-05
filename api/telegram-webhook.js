@@ -1,5 +1,5 @@
 // Google Sheets Web App URL for fetching orders
-const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyxHAEcIPe-5tHvKIEBr6j6Bl18aM9XfItJ5HhBHnhpPsSQek5H_R_ERq2wE3iXzP0X/exec';
+const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbyfgRmXU1C7jCoVqYyQqXx5Blz_m_N2wMMuvdfAXSJq21lq1YTmhgcOTbFXPBsfxa_p/exec';
 
 const BOT_TOKEN = '8543792815:AAFGUJX2jred2jChv3sIbV5E5MdLpa-I4No';
 const ORDERS_CHAT_ID = '-5107622756';
