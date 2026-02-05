@@ -118,25 +118,31 @@ export default async function handler(req, res) {
 
       // Save order to Google Sheets
       try {
-        await fetch(GOOGLE_SHEETS_URL, {
+        const sheetData = {
+          orderNumber,
+          customerName,
+          customerEmail,
+          customerPhone,
+          city,
+          address,
+          zip,
+          items: items.replace(/\n/g, '; '),
+          total,
+          paymentMethod: paymentMethod.replace(/[💵💳]/g, '').trim()
+        };
+        console.log('Sending to Google Sheets:', sheetData);
+
+        const sheetResponse = await fetch(GOOGLE_SHEETS_URL, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            orderNumber,
-            customerName,
-            customerEmail,
-            customerPhone,
-            city,
-            address,
-            zip,
-            items: items.replace(/\n/g, '; '),
-            total,
-            paymentMethod: paymentMethod.replace(/[💵💳]/g, '').trim()
-          })
+          redirect: 'follow',
+          headers: { 'Content-Type': 'text/plain' },
+          body: JSON.stringify(sheetData)
         });
-        console.log('Order saved to Google Sheets');
+
+        const sheetResult = await sheetResponse.text();
+        console.log('Google Sheets response:', sheetResult);
       } catch (sheetError) {
-        console.error('Failed to save to Google Sheets:', sheetError);
+        console.error('Failed to save to Google Sheets:', sheetError.message);
       }
 
       return res.status(200).json({ success: true });
