@@ -1,5 +1,6 @@
 // Firebase REST API - no admin SDK needed
 const FIREBASE_PROJECT_ID = process.env.VITE_FIREBASE_PROJECT_ID || 'maxios-add9e';
+const FIREBASE_API_KEY = process.env.VITE_FIREBASE_API_KEY || 'AIzaSyDCsrfTsDea9YIEtNyVmn1Nv7hQ4-hl5w';
 
 // Generate CSV content from orders
 function generateCSV(orders) {
@@ -97,8 +98,8 @@ export default async function handler(req, res) {
   }
 
   try {
-    // Fetch orders from Firestore REST API
-    const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/orders`;
+    // Fetch orders from Firestore REST API with API key
+    const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/orders?key=${FIREBASE_API_KEY}`;
     const response = await fetch(url);
     const data = await response.json();
 

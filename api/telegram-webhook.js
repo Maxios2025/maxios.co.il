@@ -1,5 +1,6 @@
 // Firebase REST API - no admin SDK needed
 const FIREBASE_PROJECT_ID = process.env.VITE_FIREBASE_PROJECT_ID || 'maxios-add9e';
+const FIREBASE_API_KEY = process.env.VITE_FIREBASE_API_KEY || 'AIzaSyDCsrfTsDea9YIEtNyVmn1Nv7hQ4-hl5w';
 
 const BOT_TOKEN = '8543792815:AAFGUJX2jred2jChv3sIbV5E5MdLpa-I4No';
 const ORDERS_CHAT_ID = '-5107622756';
@@ -155,10 +156,12 @@ export default async function handler(req, res) {
 
         await sendMessage(chatId, '⏳ Generating orders export...');
 
-        // Fetch orders from Firestore REST API
-        const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/orders`;
+        // Fetch orders from Firestore REST API with API key
+        const url = `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/orders?key=${FIREBASE_API_KEY}`;
         const response = await fetch(url);
         const data = await response.json();
+
+        console.log('Firestore response:', JSON.stringify(data).substring(0, 500));
 
         const orders = (data.documents || []).map(doc => parseFirestoreDoc(doc));
 
