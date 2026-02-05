@@ -20,6 +20,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
   const [activeStep, setActiveStep] = useState<number>(1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderComplete, setOrderComplete] = useState(false);
+  const [placedOrderNumber, setPlacedOrderNumber] = useState("");
 
   // Customer info
   const [customerName, setCustomerName] = useState("");
@@ -90,16 +91,17 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
   const isStep2Complete = customerCity.trim() !== "" && customerStreet.trim() !== "" && customerZip.trim() !== "";
   const canPlaceOrder = isStep1Complete && isStep2Complete;
 
-  const orderNumber = `MX-${Date.now().toString(36).toUpperCase()}`;
-
   const handlePlaceOrder = async () => {
     if (!canPlaceOrder) return;
     setIsProcessing(true);
 
+    // Generate order number at time of order placement
+    const currentOrderNumber = `MX-${Date.now().toString(36).toUpperCase()}`;
+
     try {
       // Create order object
       const order = {
-        orderNumber,
+        orderNumber: currentOrderNumber,
         customer: {
           name: customerName,
           email: customerEmail,
@@ -145,7 +147,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
         body: JSON.stringify({
           type: 'order',
           data: {
-            orderNumber: orderNumber,
+            orderNumber: currentOrderNumber,
             customerName: customerName,
             customerEmail: customerEmail,
             customerPhone: customerPhone,
@@ -169,7 +171,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
         'template_jsfubmy',
         {
           to_email: customerEmail,
-          order_number: orderNumber,
+          order_number: currentOrderNumber,
           customer_name: customerName,
           customer_email: customerEmail,
           customer_phone: customerPhone,
@@ -181,6 +183,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
       ).then(() => console.log('Order confirmation email sent!')).catch(err => console.log('EmailJS error:', err));
 
       setIsProcessing(false);
+      setPlacedOrderNumber(currentOrderNumber);
       setOrderComplete(true);
       setTimeout(() => {
         onCheckout();
@@ -337,7 +340,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
         <p className="text-white/60 text-lg mb-8">{t.thankYou}</p>
         <div className="inline-block p-6 border border-white/10 bg-white/5">
           <p className="text-white/40 text-sm mb-2">{t.orderNumber}</p>
-          <p className="text-orange-500 text-2xl font-mono font-bold">{orderNumber}</p>
+          <p className="text-orange-500 text-2xl font-mono font-bold">{placedOrderNumber}</p>
         </div>
       </div>
     );
