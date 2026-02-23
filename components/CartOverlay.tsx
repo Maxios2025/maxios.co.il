@@ -1,10 +1,20 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ShoppingBag, ArrowRight, Check, Banknote, ChevronDown, Plus, Minus, Truck, CreditCard, Ticket, X } from 'lucide-react';
+import { Trash2, ShoppingBag, ArrowRight, Check, Banknote, Plus, Minus, Truck, CreditCard, Ticket, X } from 'lucide-react';
 import { Language, CartItem, PromoCode } from '../App';
 import emailjs from '@emailjs/browser';
 import { saveOrder } from '../lib/firebase';
+
+// Escape user input to prevent XSS in email HTML
+function escapeHtml(str: string): string {
+  return str
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#039;');
+}
 
 interface CartOverlayProps {
   lang: Language;
@@ -41,6 +51,16 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
   // Field validation errors
   const [fieldErrors, setFieldErrors] = useState({ name: '', email: '', phone: '' });
 
+  // Phone verification state
+  const [phoneVerified, setPhoneVerified] = useState(false);
+  const [otpSent, setOtpSent] = useState(false);
+  const [otpCode, setOtpCode] = useState('');
+  const [otpError, setOtpError] = useState('');
+  const [otpLoading, setOtpLoading] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const [otpHash, setOtpHash] = useState('');
+  const [otpExpiresAt, setOtpExpiresAt] = useState(0);
+
   // Validation handlers
   const handleNameChange = (value: string) => {
     const cleanName = value.replace(/[0-9]/g, '');
@@ -60,15 +80,112 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
     setCustomerPhone(digitsOnly);
     const hasError = digitsOnly.length > 0 && digitsOnly.length !== 10;
     setFieldErrors(prev => ({ ...prev, phone: hasError ? (lang === 'en' ? 'Phone must be 10 digits' : lang === 'he' ? 'הטלפון חייב להיות 10 ספרות' : 'يجب أن يكون رقم الهاتف 10 أرقام') : '' }));
+
+    // Reset verification state if phone number changes
+    if (phoneVerified || otpSent) {
+      setPhoneVerified(false);
+      setOtpSent(false);
+      setOtpCode('');
+      setOtpError('');
+    }
   };
 
+  const handleSendOTP = async () => {
+    if (customerPhone.length !== 10 || otpLoading || resendCooldown > 0) return;
+
+    setOtpLoading(true);
+    setOtpError('');
+
+    try {
+      const res = await fetch('/api/send-otp-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: customerPhone }),
+      });
+      const data = await res.json();
+
+      if (!res.ok) {
+        if (res.status === 429) {
+          setOtpError(t.otpTooMany);
+        } else {
+          setOtpError(data.error || t.otpSendFailed);
+        }
+        return;
+      }
+
+      setOtpHash(data.hash);
+      setOtpExpiresAt(data.expiresAt);
+      setOtpSent(true);
+
+      // Start 60-second cooldown for resend
+      setResendCooldown(60);
+      const interval = setInterval(() => {
+        setResendCooldown(prev => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch (error: any) {
+      // API not available (local dev) — skip OTP, auto-verify phone
+      if (import.meta.env.DEV) {
+        console.warn('[DEV] OTP API unavailable — auto-verifying phone');
+        setPhoneVerified(true);
+        return;
+      }
+      console.error('OTP send error:', error);
+      setOtpError(t.otpSendFailed);
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const handleVerifyOTP = async () => {
+    if (otpCode.length !== 6) return;
+
+    setOtpLoading(true);
+    setOtpError('');
+
+    try {
+      const res = await fetch('/api/verify-otp-sms', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ phone: customerPhone, code: otpCode, hash: otpHash, expiresAt: otpExpiresAt }),
+      });
+      const data = await res.json();
+
+      if (data.valid) {
+        setPhoneVerified(true);
+        setOtpError('');
+      } else {
+        setOtpError(data.error === 'Code expired' ? t.otpExpired : t.otpInvalidCode);
+      }
+    } catch (error: any) {
+      console.error('OTP verify error:', error);
+      setOtpError(t.otpVerifyFailed);
+    } finally {
+      setOtpLoading(false);
+    }
+  };
+
+  const MAX_QTY = 5;
   const removeItem = (id: string) => setCart(cart.filter(i => i.id !== id));
-  const increaseQty = (id: string) => setCart(cart.map(item => item.id === id ? { ...item, qty: item.qty + 1 } : item));
+  const increaseQty = (id: string) => setCart(cart.map(item => item.id === id && item.qty < MAX_QTY ? { ...item, qty: item.qty + 1 } : item));
   const decreaseQty = (id: string) => setCart(cart.map(item => item.id === id && item.qty > 1 ? { ...item, qty: item.qty - 1 } : item));
 
   const applyPromo = () => {
     const code = promoCodes.find(c => c.code === promoInput.toUpperCase());
     if (code) {
+      // Check if promo code has expired
+      const createdTime = new Date(code.createdAt).getTime();
+      const expiryMs = code.expiryHours * 60 * 60 * 1000;
+      if (Date.now() > createdTime + expiryMs) {
+        setPromoError(true);
+        setTimeout(() => setPromoError(false), 3000);
+        return;
+      }
       setAppliedPromo(code);
       setPromoError(false);
     } else {
@@ -82,12 +199,12 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
     setPromoInput("");
   };
 
-  const calculateSubtotal = () => cart.reduce((acc, item) => acc + (parseFloat(item.price.replace(/[$₪,]/g, '')) * item.qty), 0);
+  const calculateSubtotal = () => cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
   const subtotal = calculateSubtotal();
   const discountAmount = appliedPromo ? (subtotal * appliedPromo.percent / 100) : 0;
   const total = subtotal - discountAmount;
 
-  const isStep1Complete = customerName.trim() !== "" && customerEmail.includes('@') && !customerEmail.includes(' ') && customerPhone.replace(/\D/g, '').length === 10;
+  const isStep1Complete = customerName.trim() !== "" && customerEmail.includes('@') && !customerEmail.includes(' ') && customerPhone.replace(/\D/g, '').length === 10 && phoneVerified;
   const isStep2Complete = customerCity.trim() !== "" && customerStreet.trim() !== "" && customerZip.trim() !== "";
   const canPlaceOrder = isStep1Complete && isStep2Complete;
 
@@ -129,13 +246,11 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
       saveOrder(order as any).then(result => {
         if (result.error) {
           console.error('Firebase save error:', result.error);
-        } else {
-          console.log('Order saved to Firebase successfully!');
         }
       });
 
       // Send Telegram notification to orders group
-      const itemsList = cart.map(item => `• ${item.name} x${item.qty} - ₪${(parseFloat(item.price.replace(/[$₪,]/g, '')) * item.qty).toFixed(0)}`).join('\n');
+      const itemsList = cart.map(item => `• ${item.name} x${item.qty} - ₪${(item.price * item.qty).toFixed(0)}`).join('\n');
       const telegramPayload = {
         type: 'order',
         data: {
@@ -151,21 +266,65 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
           paymentMethod: paymentMethod === 'cod' ? '💵 Cash on Delivery' : '💳 Credit Card'
         }
       };
-      console.log('=== FRONTEND DEBUG ===');
-      console.log('Generated orderNumber:', currentOrderNumber);
-      console.log('Full telegramPayload:', JSON.stringify(telegramPayload, null, 2));
-      console.log('======================');
-
       fetch('/api/send-telegram', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(telegramPayload)
-      }).then(res => res.json()).then(data => console.log('Telegram order response:', data)).catch(err => console.log('Telegram error:', err));
+      }).then(res => res.json()).catch(err => console.error('Telegram error:', err));
 
       // Send order confirmation email to customer
-      const orderItemsHtml = cart.map(item =>
-        `${item.name} x${item.qty} - ₪${(parseFloat(item.price.replace(/[$₪,]/g, '')) * item.qty).toFixed(0)}`
-      ).join('<br>');
+      const orderItemsHtml = cart.map(item => {
+        const itemTotal = (item.price * item.qty).toFixed(0);
+        const imgSrc = item.img && item.img.startsWith('http') ? item.img : `https://maxios.co.il${item.img}`;
+        const safeName = escapeHtml(item.name);
+        return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;border-bottom:1px solid #1e1e1e;"><tr><td width="70" valign="top" style="padding:12px 0 16px;"><img src="${escapeHtml(imgSrc)}" alt="${safeName}" width="60" height="60" style="display:block;width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid #2a2a2a;" /></td><td valign="top" style="padding:12px 16px 16px;"><p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">${safeName}</p><p style="margin:0;font-size:12px;color:#888888;font-family:Arial,Helvetica,sans-serif;">Qty: ${item.qty}</p></td><td valign="top" align="left" style="padding:12px 0 16px;"><p style="margin:0;font-size:16px;font-weight:900;color:#ea580c;font-family:Arial,Helvetica,sans-serif;">&#8362;${itemTotal}</p></td></tr></table>`;
+      }).join('');
+
+      const discountRow = appliedPromo ? `<tr><td style="padding:14px 0;font-size:14px;color:#22c55e;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">הנחה (${appliedPromo.code} - ${appliedPromo.percent}%)</td><td align="left" style="padding:14px 0;font-size:14px;color:#22c55e;font-weight:bold;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">-&#8362;${discountAmount.toFixed(0)}</td></tr>` : '';
+      const paymentLabel = paymentMethod === 'cod' ? 'תשלום במסירה' : 'כרטיס אשראי';
+      const safeCustomerName = escapeHtml(customerName);
+      const shippingAddress = escapeHtml(`${customerStreet}, ${customerCity} ${customerZip}`);
+
+      const fullEmailHtml = `<!DOCTYPE html><html lang="he" dir="rtl"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0"><!--[if mso]><style>table{border-collapse:collapse;}td{font-family:Arial,sans-serif;}</style><![endif]--></head><body style="margin:0;padding:0;background-color:#0a0a0a;-webkit-text-size-adjust:100%;-ms-text-size-adjust:100%;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#0a0a0a;"><tr><td align="center" style="padding:0;"><div style="display:none;max-height:0;overflow:hidden;mso-hide:all;">תודה על ההזמנה שלך מ-Maxios! מספר הזמנה: ${currentOrderNumber}</div><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;"><tr><td style="font-size:0;line-height:0;background-color:#0a0a0a;" align="center"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:#ea580c;height:4px;font-size:0;line-height:0;">&nbsp;</td></tr></table></td></tr></table><table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#141414;">
+
+<tr><td align="center" style="padding:48px 40px 16px;"><a href="https://maxios.co.il" target="_blank" style="text-decoration:none;"><img src="https://maxios.co.il/logo.png" alt="Maxios" width="180" style="display:block;width:180px;height:auto;border:0;" /></a></td></tr>
+
+<tr><td align="center" style="padding:8px 40px 8px;"><h1 style="margin:0;font-size:36px;font-weight:900;color:#ffffff;font-family:Georgia,'Times New Roman',serif;line-height:1.2;">Thank You for Order</h1></td></tr>
+
+<tr><td align="center" style="padding:8px 50px 24px;"><p style="margin:0;font-size:15px;color:#888888;line-height:1.7;font-family:Arial,Helvetica,sans-serif;">ההזמנה שלך התקבלה בהצלחה. אנו מכינים את החבילה שלך ונשלח עדכון משלוח בקרוב.</p></td></tr>
+
+<tr><td align="center" style="padding:0 40px 16px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="background-color:#ea580c;border-radius:8px;"><a href="https://maxios.co.il" target="_blank" style="display:inline-block;padding:16px 48px;color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;letter-spacing:1.5px;font-family:Arial,Helvetica,sans-serif;border-radius:8px;">Track Your Order</a></td></tr></table></td></tr>
+
+<tr><td align="center" style="padding:4px 40px 40px;"><p style="margin:0;font-size:12px;color:#555555;font-family:Arial,Helvetica,sans-serif;">Please allow 24 hours to track your order.</p></td></tr>
+
+<tr><td style="padding:0 30px 32px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1e1e1e;border-radius:12px;overflow:hidden;"><tr><td width="50%" valign="top" style="padding:28px 24px;border-left:1px solid #2a2a2a;"><p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#888888;letter-spacing:2px;text-transform:uppercase;font-family:Arial,Helvetica,sans-serif;">Summary</p><p style="margin:0 0 6px;font-size:13px;color:#ea580c;font-weight:bold;font-family:Arial,Helvetica,sans-serif;">Ready to Ship</p><p style="margin:0 0 4px;font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif;">${currentOrderNumber}</p><p style="margin:0;font-size:18px;color:#ffffff;font-weight:900;font-family:Arial,Helvetica,sans-serif;">&#8362;${total.toFixed(0)}</p></td><td width="50%" valign="top" style="padding:28px 24px;"><p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#888888;letter-spacing:2px;text-transform:uppercase;font-family:Arial,Helvetica,sans-serif;">Shipping Address</p><p style="margin:0 0 4px;font-size:14px;color:#ffffff;font-weight:bold;font-family:Arial,Helvetica,sans-serif;">${safeCustomerName}</p><p style="margin:0;font-size:13px;color:#888888;line-height:1.6;font-family:Arial,Helvetica,sans-serif;">${shippingAddress}</p></td></tr></table></td></tr>
+
+<tr><td style="padding:0 60px 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #222222;font-size:0;line-height:0;">&nbsp;</td></tr></table></td></tr>
+
+<tr><td align="center" style="padding:40px 30px 6px;"><h2 style="margin:0;font-size:28px;font-weight:900;color:#ffffff;font-family:Georgia,'Times New Roman',serif;">Your item in this order</h2></td></tr>
+<tr><td align="center" style="padding:4px 30px 28px;"><p style="margin:0;font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif;">Order number: #${currentOrderNumber}</p></td></tr>
+
+<tr><td style="padding:0 30px 16px;">${orderItemsHtml}</td></tr>
+
+<tr><td style="padding:0 30px 8px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:14px 0;font-size:14px;color:#888888;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">Subtotal</td><td align="left" style="padding:14px 0;font-size:14px;color:#ffffff;font-weight:bold;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">&#8362;${subtotal.toFixed(0)}</td></tr>${discountRow}<tr><td style="padding:14px 0;font-size:14px;color:#888888;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">Standard Delivery</td><td align="left" style="padding:14px 0;font-size:14px;color:#22c55e;font-weight:bold;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">FREE</td></tr><tr><td style="padding:20px 0 8px;font-size:16px;font-weight:900;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">Total:</td><td align="left" style="padding:20px 0 8px;font-size:24px;font-weight:900;color:#ea580c;font-family:Arial,Helvetica,sans-serif;">&#8362;${total.toFixed(0)}</td></tr></table></td></tr>
+
+<tr><td style="padding:8px 30px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1e1e1e;border-radius:8px;"><tr><td style="padding:14px 20px;font-size:13px;color:#888888;font-family:Arial,Helvetica,sans-serif;">Payment: <span style="color:#ffffff;font-weight:bold;">${paymentLabel}</span></td></tr></table></td></tr>
+
+<tr><td style="padding:0 60px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #222222;font-size:0;line-height:0;">&nbsp;</td></tr></table></td></tr>
+
+<tr><td align="center" style="padding:40px 30px 8px;"><h2 style="margin:0;font-size:26px;font-weight:900;color:#ffffff;font-family:Georgia,'Times New Roman',serif;">Any problems with your order?</h2></td></tr>
+
+<tr><td style="padding:20px 30px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td width="48%" valign="top" style="padding-left:6px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1e1e1e;border-radius:12px;"><tr><td align="center" style="padding:24px 16px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="width:44px;height:44px;background-color:#2a2a2a;border-radius:50%;text-align:center;vertical-align:middle;"><span style="font-size:20px;line-height:44px;">&#9993;</span></td></tr></table><p style="margin:12px 0 2px;font-size:14px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">Email Us</p><p style="margin:0;font-size:12px;color:#ea580c;font-family:Arial,Helvetica,sans-serif;">support@maxios.co.il</p></td></tr></table></td><td width="4%">&nbsp;</td><td width="48%" valign="top" style="padding-right:6px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1e1e1e;border-radius:12px;"><tr><td align="center" style="padding:24px 16px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="width:44px;height:44px;background-color:#2a2a2a;border-radius:50%;text-align:center;vertical-align:middle;"><span style="font-size:20px;line-height:44px;">&#9742;</span></td></tr></table><p style="margin:12px 0 2px;font-size:14px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">Call Us</p><p style="margin:0;font-size:12px;color:#ea580c;font-family:Arial,Helvetica,sans-serif;">050-1234567</p></td></tr></table></td></tr></table></td></tr>
+
+<tr><td style="padding:0 30px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:linear-gradient(135deg,#ea580c 0%,#c2410c 100%);border-radius:16px;overflow:hidden;"><tr><td align="center" style="padding:36px 30px;"><h3 style="margin:0 0 8px;font-size:24px;font-weight:900;color:#ffffff;font-family:Georgia,'Times New Roman',serif;">Share with friends</h3><p style="margin:0 0 20px;font-size:14px;color:rgba(255,255,255,0.85);line-height:1.6;font-family:Arial,Helvetica,sans-serif;">Love your order? Tell your friends about Maxios<br>and help them discover cinematic quality gear.</p><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:#ffffff;border-radius:8px;"><a href="https://maxios.co.il" target="_blank" style="display:inline-block;padding:14px 40px;color:#ea580c;font-size:14px;font-weight:bold;text-decoration:none;font-family:Arial,Helvetica,sans-serif;">Visit Maxios</a></td></tr></table></td></tr></table></td></tr>
+
+<tr><td style="padding:0 30px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1e1e1e;border-radius:12px;"><tr><td style="padding:24px 28px;" valign="middle"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td valign="middle" style="padding-left:16px;"><p style="margin:0 0 2px;font-size:16px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">Want to talk business with us?</p><p style="margin:0;font-size:13px;color:#888888;line-height:1.5;font-family:Arial,Helvetica,sans-serif;">Feel free to reach out at <span style="color:#ea580c;font-weight:bold;">partner@maxios.co.il</span><br>We open opportunities for all forms of business collaboration</p></td></tr></table></td></tr></table></td></tr>
+
+</table>
+
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#0f0f0f;border-top:1px solid #1e1e1e;"><tr><td align="center" style="padding:40px 30px 12px;"><a href="https://maxios.co.il" target="_blank" style="text-decoration:none;"><img src="https://maxios.co.il/logo.png" alt="Maxios" width="140" style="display:block;width:140px;height:auto;border:0;" /></a></td></tr><tr><td align="center" style="padding:0 30px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:0 8px;"><a href="#" style="display:inline-block;width:36px;height:36px;background-color:#1e1e1e;border-radius:50%;text-align:center;line-height:36px;text-decoration:none;"><span style="color:#888888;font-size:16px;">&#9679;</span></a></td><td style="padding:0 8px;"><a href="#" style="display:inline-block;width:36px;height:36px;background-color:#1e1e1e;border-radius:50%;text-align:center;line-height:36px;text-decoration:none;"><span style="color:#888888;font-size:16px;">&#9679;</span></a></td><td style="padding:0 8px;"><a href="#" style="display:inline-block;width:36px;height:36px;background-color:#1e1e1e;border-radius:50%;text-align:center;line-height:36px;text-decoration:none;"><span style="color:#888888;font-size:16px;">&#9679;</span></a></td><td style="padding:0 8px;"><a href="#" style="display:inline-block;width:36px;height:36px;background-color:#1e1e1e;border-radius:50%;text-align:center;line-height:36px;text-decoration:none;"><span style="color:#888888;font-size:16px;">&#9679;</span></a></td></tr></table></td></tr><tr><td align="center" style="padding:0 30px 12px;"><p style="margin:0;font-size:12px;color:#444444;line-height:1.6;font-family:Arial,Helvetica,sans-serif;">Maxios HQ, Israel</p></td></tr><tr><td align="center" style="padding:0 30px 40px;"><p style="margin:0 0 8px;font-size:11px;color:#333333;font-family:Arial,Helvetica,sans-serif;">&copy; 2026 Maxios. All rights reserved.</p><a href="#" style="font-size:12px;color:#ea580c;text-decoration:underline;font-family:Arial,Helvetica,sans-serif;">Unsubscribe</a></td></tr></table>
+
+</td></tr></table></body></html>`;
 
       emailjs.send(
         'service_9sh4kyv',
@@ -177,11 +336,13 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
           customer_email: customerEmail,
           customer_phone: customerPhone,
           shipping_address: `${customerStreet}, ${customerCity} ${customerZip}`,
-          order_items: orderItemsHtml,
-          order_total: total.toFixed(0)
+          order_items: cart.map(item => `${item.name} x${item.qty} - ₪${(item.price * item.qty).toFixed(0)}`).join('\n'),
+          order_total: total.toFixed(0),
+          payment_method: paymentMethod === 'cod' ? 'Cash on Delivery' : 'Credit Card',
+          message_html: fullEmailHtml
         },
         '_jL_0gQsRkGzlKdZw'
-      ).then(() => console.log('Order confirmation email sent!')).catch(err => console.log('EmailJS error:', err));
+      ).catch(err => console.error('EmailJS error:', err));
 
       setIsProcessing(false);
       setPlacedOrderNumber(currentOrderNumber);
@@ -239,7 +400,25 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
       apply: "Apply",
       promoApplied: "Promo code applied!",
       invalidPromo: "Invalid promo code",
-      remove: "Remove"
+      remove: "Remove",
+      maxQty: "Max 5 per product.",
+      contactForMore: "Need more? Contact us",
+      sendCode: "Send Code",
+      sending: "Sending...",
+      verified: "Verified",
+      verify: "Verify",
+      verifying: "Verifying...",
+      otpSentTo: "Code sent to",
+      resendCode: "Resend Code",
+      resendIn: "Resend in",
+      changePhone: "Change number",
+      otpInvalidCode: "Invalid code. Please try again.",
+      otpExpired: "Code expired. Please request a new one.",
+      otpTooMany: "Too many attempts. Please try again later.",
+      otpInvalidPhone: "Invalid phone number format.",
+      otpCaptchaFailed: "Verification failed. Please try again.",
+      otpSendFailed: "Failed to send code. Please try again.",
+      otpVerifyFailed: "Verification failed. Please try again."
     },
     he: {
       title: "סיום ההזמנה",
@@ -283,7 +462,25 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
       apply: "החל",
       promoApplied: "הקופון הוחל!",
       invalidPromo: "קוד קופון לא תקין",
-      remove: "הסר"
+      remove: "הסר",
+      maxQty: "מקסימום 5 ליחידה.",
+      contactForMore: "צריך יותר? צור קשר",
+      sendCode: "שלח קוד",
+      sending: "שולח...",
+      verified: "אומת",
+      verify: "אמת",
+      verifying: "מאמת...",
+      otpSentTo: "הקוד נשלח ל",
+      resendCode: "שלח שוב",
+      resendIn: "שלח שוב בעוד",
+      changePhone: "שנה מספר",
+      otpInvalidCode: "קוד שגוי. נסה שוב.",
+      otpExpired: "הקוד פג תוקף. בקש קוד חדש.",
+      otpTooMany: "יותר מדי ניסיונות. נסה שוב מאוחר יותר.",
+      otpInvalidPhone: "מספר טלפון לא תקין.",
+      otpCaptchaFailed: "האימות נכשל. נסה שוב.",
+      otpSendFailed: "שליחת הקוד נכשלה. נסה שוב.",
+      otpVerifyFailed: "האימות נכשל. נסה שוב."
     },
     ar: {
       title: "إتمام الطلب",
@@ -327,7 +524,25 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
       apply: "تطبيق",
       promoApplied: "تم تطبيق الرمز!",
       invalidPromo: "رمز ترويجي غير صالح",
-      remove: "إزالة"
+      remove: "إزالة",
+      maxQty: "الحد الأقصى 5 لكل منتج.",
+      contactForMore: "تحتاج المزيد؟ تواصل معنا",
+      sendCode: "إرسال الرمز",
+      sending: "جاري الإرسال...",
+      verified: "تم التحقق",
+      verify: "تحقق",
+      verifying: "جاري التحقق...",
+      otpSentTo: "تم إرسال الرمز إلى",
+      resendCode: "إعادة إرسال",
+      resendIn: "إعادة الإرسال خلال",
+      changePhone: "تغيير الرقم",
+      otpInvalidCode: "رمز غير صحيح. حاول مرة أخرى.",
+      otpExpired: "انتهت صلاحية الرمز. اطلب رمزاً جديداً.",
+      otpTooMany: "محاولات كثيرة. حاول مرة أخرى لاحقاً.",
+      otpInvalidPhone: "صيغة رقم الهاتف غير صحيحة.",
+      otpCaptchaFailed: "فشل التحقق. حاول مرة أخرى.",
+      otpSendFailed: "فشل إرسال الرمز. حاول مرة أخرى.",
+      otpVerifyFailed: "فشل التحقق. حاول مرة أخرى."
     }
   }[lang];
 
@@ -413,17 +628,104 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
                       </div>
                       <div>
                         <label className="text-white/50 text-xs uppercase tracking-wider block mb-2">{t.phone}</label>
-                        <input
-                          type="tel"
-                          value={customerPhone}
-                          onChange={(e) => handlePhoneChange(e.target.value)}
-                          className={`w-full bg-white/5 border ${fieldErrors.phone ? 'border-red-500' : 'border-white/10'} p-3 text-white outline-none focus:border-orange-500 transition-colors`}
-                          placeholder="0501234567"
-                          dir="ltr"
-                        />
+                        <div className="flex gap-2">
+                          <input
+                            type="tel"
+                            value={customerPhone}
+                            onChange={(e) => handlePhoneChange(e.target.value)}
+                            className={`flex-1 bg-white/5 border ${
+                              fieldErrors.phone ? 'border-red-500' :
+                              phoneVerified ? 'border-green-500' : 'border-white/10'
+                            } p-3 text-white outline-none focus:border-orange-500 transition-colors`}
+                            placeholder="0501234567"
+                            dir="ltr"
+                            disabled={phoneVerified}
+                          />
+                          {!phoneVerified && !otpSent && (
+                            <button
+                              type="button"
+                              onClick={handleSendOTP}
+                              disabled={customerPhone.length !== 10 || otpLoading}
+                              className={`px-3 py-3 font-bold text-xs uppercase tracking-wider whitespace-nowrap ${
+                                customerPhone.length === 10 && !otpLoading
+                                  ? 'bg-orange-500 text-white hover:bg-orange-600'
+                                  : 'bg-white/10 text-white/30 cursor-not-allowed'
+                              } transition-colors`}
+                            >
+                              {otpLoading ? t.sending : t.sendCode}
+                            </button>
+                          )}
+                          {phoneVerified && (
+                            <div className="flex items-center gap-2 px-3 bg-green-500/10 border border-green-500/30">
+                              <Check size={14} className="text-green-400" />
+                              <span className="text-green-400 text-xs font-bold">{t.verified}</span>
+                            </div>
+                          )}
+                        </div>
                         {fieldErrors.phone && <p className="text-red-500 text-[10px] mt-1">{fieldErrors.phone}</p>}
+                        {otpError && !otpSent && <p className="text-red-400 text-sm mt-1">{otpError}</p>}
+
                       </div>
                     </div>
+
+                    {/* OTP Input Section - full width below the grid */}
+                    {otpSent && !phoneVerified && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: 'auto', opacity: 1 }}
+                        className="p-4 border border-white/10 bg-white/[0.02] space-y-3"
+                      >
+                        <p className="text-white/50 text-xs text-center">{t.otpSentTo} <span className="text-orange-500 font-mono" dir="ltr">{customerPhone}</span></p>
+                        <div className="flex gap-2 max-w-sm mx-auto">
+                          <input
+                            type="text"
+                            value={otpCode}
+                            onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                            className="flex-1 bg-white/5 border border-white/10 p-3 text-white text-center text-xl tracking-[0.5em] font-mono outline-none focus:border-orange-500"
+                            placeholder="000000"
+                            maxLength={6}
+                            dir="ltr"
+                            autoFocus
+                          />
+                          <button
+                            type="button"
+                            onClick={handleVerifyOTP}
+                            disabled={otpCode.length !== 6 || otpLoading}
+                            className={`px-4 py-3 font-bold text-xs uppercase ${
+                              otpCode.length === 6 && !otpLoading
+                                ? 'bg-orange-500 text-white hover:bg-orange-600'
+                                : 'bg-white/10 text-white/30 cursor-not-allowed'
+                            } transition-colors`}
+                          >
+                            {otpLoading ? t.verifying : t.verify}
+                          </button>
+                        </div>
+                        {otpError && <p className="text-red-400 text-sm text-center">{otpError}</p>}
+                        <div className="flex items-center justify-center gap-6">
+                          <button
+                            type="button"
+                            onClick={handleSendOTP}
+                            disabled={resendCooldown > 0 || otpLoading}
+                            className={`text-sm ${resendCooldown > 0 ? 'text-white/30' : 'text-orange-500 hover:text-orange-400'}`}
+                          >
+                            {resendCooldown > 0
+                              ? `${t.resendIn} ${resendCooldown}s`
+                              : t.resendCode}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOtpSent(false);
+                              setOtpCode('');
+                              setOtpError('');
+                            }}
+                            className="text-white/30 text-sm hover:text-white/60"
+                          >
+                            {t.changePhone}
+                          </button>
+                        </div>
+                      </motion.div>
+                    )}
                     <div>
                       <label className="text-white/50 text-xs uppercase tracking-wider block mb-2">{t.email}</label>
                       <input
@@ -754,16 +1056,26 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
                         <Minus size={12} />
                       </button>
                       <span className="text-white text-sm w-6 text-center">{item.qty}</span>
-                      <button onClick={() => increaseQty(item.id)} className="w-6 h-6 border border-white/20 flex items-center justify-center text-white/60 hover:bg-white/10">
+                      <button
+                        onClick={() => increaseQty(item.id)}
+                        disabled={item.qty >= MAX_QTY}
+                        className={`w-6 h-6 border border-white/20 flex items-center justify-center ${item.qty >= MAX_QTY ? 'text-white/20 cursor-not-allowed' : 'text-white/60 hover:bg-white/10'}`}
+                      >
                         <Plus size={12} />
                       </button>
                       <button onClick={() => removeItem(item.id)} className="ml-auto text-white/30 hover:text-red-500">
                         <Trash2 size={14} />
                       </button>
                     </div>
+                    {item.qty >= MAX_QTY && (
+                      <p className="text-orange-400 text-[10px] mt-1">
+                        {t.maxQty}{' '}
+                        <a href="/contact" className="underline hover:text-orange-300">{t.contactForMore}</a>
+                      </p>
+                    )}
                   </div>
                   <div className="text-right">
-                    <p className="text-white font-bold">₪{(parseFloat(item.price.replace(/[$₪,]/g, '')) * item.qty).toFixed(0)}</p>
+                    <p className="text-white font-bold">₪{(item.price * item.qty).toLocaleString()}</p>
                   </div>
                 </div>
               ))}
@@ -793,6 +1105,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
           </div>
         </div>
       </div>
+
     </div>
   );
 };
