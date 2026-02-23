@@ -77,13 +77,19 @@ function AppContent() {
     if (!saved) return [];
     try {
       const parsed = JSON.parse(saved);
-      // Sanitize: ensure every item has a valid numeric price
-      return parsed.filter((item: any) => item && item.id).map((item: any) => ({
-        ...item,
-        price: typeof item.price === 'number' && !isNaN(item.price) ? item.price : 0,
-        qty: typeof item.qty === 'number' && item.qty > 0 ? item.qty : 1,
-      }));
-    } catch { return []; }
+      // Drop any items with invalid/missing prices — user can re-add from homepage
+      const valid = parsed.filter((item: any) =>
+        item && item.id &&
+        typeof item.price === 'number' && !isNaN(item.price) && item.price > 0
+      );
+      if (valid.length !== parsed.length) {
+        localStorage.setItem('maxios_cart', JSON.stringify(valid));
+      }
+      return valid;
+    } catch {
+      localStorage.removeItem('maxios_cart');
+      return [];
+    }
   });
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
