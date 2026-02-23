@@ -1,27 +1,112 @@
-/* MAXIOS Styles - Tailwind is loaded via CDN */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-/* Hebrew text - tight letter-spacing for readability */
-:lang(he),
-[lang="he"],
-html[lang="he"] * {
-  letter-spacing: -0.02em !important;
+@layer base {
+  body {
+    margin: 0;
+    padding: 0;
+    background-color: #000000;
+    color: #ffffff;
+    font-family: 'Inter', sans-serif;
+    overflow-x: hidden;
+  }
+
+  /* Global Hebrew text override when lang=he */
+  [lang="he"] body,
+  [dir="rtl"]:lang(he),
+  html[lang="he"] {
+    font-family: 'IBM Plex Sans Hebrew', 'Arial Hebrew', sans-serif;
+  }
+
+  /* Hebrew letter-spacing - tight for readability */
+  html[lang="he"] * {
+    letter-spacing: -0.02em !important;
+  }
+  html[lang="he"] h1, html[lang="he"] h2, html[lang="he"] h3,
+  html[lang="he"] h4, html[lang="he"] h5, html[lang="he"] h6 {
+    letter-spacing: -0.03em !important;
+  }
+  html[lang="he"] .tracking-widest,
+  html[lang="he"] .tracking-wider,
+  html[lang="he"] .tracking-wide {
+    letter-spacing: -0.01em !important;
+  }
 }
 
-/* Hebrew headings - slightly tighter */
-:lang(he) h1, :lang(he) h2, :lang(he) h3, :lang(he) h4, :lang(he) h5, :lang(he) h6,
-[lang="he"] h1, [lang="he"] h2, [lang="he"] h3, [lang="he"] h4, [lang="he"] h5, [lang="he"] h6 {
-  letter-spacing: -0.03em !important;
+@layer utilities {
+  /* Arabic text styling */
+  .font-arabic {
+    font-family: 'Cairo', 'Tajawal', 'Noto Sans Arabic', sans-serif;
+    font-weight: 700;
+  }
+
+  /* Hebrew text styling */
+  .font-hebrew {
+    font-family: 'IBM Plex Sans Hebrew', 'Arial Hebrew', sans-serif;
+    font-weight: 700;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  /* Hero headlines - language specific */
+  .font-hero {
+    font-family: 'Inter', sans-serif;
+    font-weight: 900;
+  }
+  .font-hero-hebrew {
+    font-family: 'IBM Plex Sans Hebrew', 'Arial Hebrew', sans-serif;
+    font-weight: 700;
+    letter-spacing: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  .font-hero-arabic {
+    font-family: 'Cairo', 'Tajawal', sans-serif;
+    font-weight: 800;
+  }
+  .hero-glow {
+    text-shadow: 0 0 30px #FF6B35, 0 0 60px #FF6B3580, 0 0 90px #FF6B3540;
+  }
+
+  /* Enhanced Hebrew headline styles */
+  .hebrew-headline {
+    font-family: 'IBM Plex Sans Hebrew', 'Arial Hebrew', sans-serif;
+    font-weight: 700;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  .hebrew-body {
+    font-family: 'IBM Plex Sans Hebrew', 'Arial Hebrew', sans-serif;
+    font-weight: 500;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  .hebrew-small {
+    font-family: 'IBM Plex Sans Hebrew', 'Arial Hebrew', sans-serif;
+    font-weight: 600;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
 }
 
-/* Hebrew buttons and labels */
-:lang(he) button, :lang(he) a, :lang(he) span, :lang(he) p, :lang(he) label,
-[lang="he"] button, [lang="he"] a, [lang="he"] span, [lang="he"] p, [lang="he"] label {
-  letter-spacing: -0.02em !important;
+/* Hide reCAPTCHA badge */
+.grecaptcha-badge { visibility: hidden !important; }
+
+/* Hide scrollbar for cinematic feel during loading */
+.no-scroll {
+  overflow: hidden;
 }
 
-/* Override any tracking-widest or tracking-wide classes for Hebrew */
-html[lang="he"] .tracking-widest,
-html[lang="he"] .tracking-wider,
-html[lang="he"] .tracking-wide {
-  letter-spacing: -0.01em !important;
+@keyframes aurora {
+  from {
+    background-position: 50% 50%, 50% 50%;
+  }
+  to {
+    background-position: 350% 50%, 350% 50%;
+  }
+}
+
+.animate-aurora {
+  animation: aurora 60s linear infinite;
 }

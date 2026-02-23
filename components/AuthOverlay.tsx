@@ -90,13 +90,13 @@ export const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, lang,
   const validate = () => {
     const newErrors: { [key: string]: string } = {};
 
-    // Password: 8 chars, uppercase, lowercase, number, English only
-    const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/;
-    if (!passRegex.test(formData.password)) {
-      newErrors.password = (t as any).errPass || "Invalid Password Complexity";
-    }
-
     if (mode === 'signup') {
+      // Password complexity only enforced on signup — login lets Firebase handle validation
+      const passRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)[a-zA-Z\d]{8,}$/;
+      if (!passRegex.test(formData.password)) {
+        newErrors.password = (t as any).errPass || "Invalid Password Complexity";
+      }
+
       // Israel Phone: 05, 10 digits
       const phoneRegex = /^05\d{8}$/;
       if (!phoneRegex.test(formData.phone)) {
@@ -124,13 +124,34 @@ export const AuthOverlay: React.FC<AuthOverlayProps> = ({ isOpen, onClose, lang,
     e.preventDefault();
     setAuthError('');
 
-    // ADMIN OVERRIDE
-    if (formData.email === 'service@maxios.co.il' && formData.password === 'maxios1900') {
-      onSuccess({
-        name: 'ADMIN COMMANDER', email: 'admin@maxios.co.il', phone: '000', isAdmin: true,
-        address: { city: 'HQ', zip: '00000', street: 'Kfar Kanna' }
+    // Check admin login via server-side API (credentials stay on server)
+    try {
+      const adminRes = await fetch('/api/check-admin', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: formData.email, password: formData.password })
       });
-      return;
+      if (adminRes.ok) {
+        const adminData = await adminRes.json();
+        if (adminData.isAdmin) {
+          onSuccess({
+            name: adminData.name, email: adminData.email, phone: '000', isAdmin: true,
+            address: { city: 'HQ', zip: '00000', street: 'Kfar Kanna' }
+          });
+          return;
+        }
+      }
+    } catch {
+      // API not available (local dev) — dev-only fallback, stripped from production builds
+      if (import.meta.env.DEV) {
+        if (formData.email === 'service@maxios.co.il' && formData.password === 'maxios1900') {
+          onSuccess({
+            name: 'ADMIN COMMANDER', email: 'service@maxios.co.il', phone: '000', isAdmin: true,
+            address: { city: 'HQ', zip: '00000', street: 'Kfar Kanna' }
+          });
+          return;
+        }
+      }
     }
 
     if (!validate()) return;

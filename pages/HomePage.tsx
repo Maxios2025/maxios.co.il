@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Hero } from '../components/Hero';
@@ -20,10 +20,26 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
 
   // Detect mobile for reduced motion
   const [isMobile, setIsMobile] = useState(false);
-  const [videoLoaded, setVideoLoaded] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   useEffect(() => {
     setIsMobile(window.innerWidth < 768);
+  }, []);
+
+  // Force video playback on mount
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video) return;
+    video.play().catch(() => {
+      // Autoplay blocked — try playing on first user interaction
+      const playOnInteraction = () => {
+        video.play().catch(() => {});
+        document.removeEventListener('click', playOnInteraction);
+        document.removeEventListener('scroll', playOnInteraction);
+      };
+      document.addEventListener('click', playOnInteraction);
+      document.addEventListener('scroll', playOnInteraction);
+    });
   }, []);
 
   // Image carousel states
@@ -31,9 +47,9 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
   const [imageDirection, setImageDirection] = useState(0);
 
   const productImages = [
-    "/WhatsApp Image 2026-01-29 at 4.37.53 PM.jpeg",
-    "/WhatsApp Image 2026-01-29 at 4.37.50 PM (4).jpeg",
-    "/WhatsApp Image 2026-01-29 at 4.37.50 PM (2).jpeg",
+    "/hero-poster.jpeg",
+    "/product-angle-1.jpeg",
+    "/product-angle-2.jpeg",
     "/mms.jpeg",
     "/lods.jpeg"
   ];
@@ -78,30 +94,19 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
       >
 
         <section className="relative h-screen sticky top-0 overflow-hidden">
-          {/* Video Background with poster for fast initial display */}
+          {/* Video Background */}
           <video
+            ref={videoRef}
             autoPlay
             muted
             loop
             playsInline
             preload="auto"
-            poster="/WhatsApp Image 2026-01-29 at 4.37.53 PM.jpeg"
-            onLoadedData={() => setVideoLoaded(true)}
-            className={`absolute inset-0 w-full h-full object-cover transition-opacity duration-500 ${videoLoaded ? 'opacity-100' : 'opacity-0'}`}
-            style={{ zIndex: 0, willChange: 'transform' }}
+            className="absolute inset-0 w-full h-full object-cover"
+            style={{ zIndex: 0 }}
           >
             <source src="/background-video.mp4" type="video/mp4" />
           </video>
-          {/* Poster fallback while video loads */}
-          {!videoLoaded && (
-            <div
-              className="absolute inset-0 bg-cover bg-center"
-              style={{
-                zIndex: 0,
-                backgroundImage: 'url(/WhatsApp Image 2026-01-29 at 4.37.53 PM.jpeg)'
-              }}
-            />
-          )}
           {/* Dark overlay for readability */}
           <div className="absolute inset-0 bg-black/40" style={{ zIndex: 1 }} />
           {/* Hero content centered over video */}
@@ -210,7 +215,7 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
                       <div className="hidden md:block absolute inset-0 bg-purple-500/10 blur-[60px] group-hover:bg-purple-500/20 transition-all duration-700" />
                       <div className="relative flex flex-col gap-3">
                         <img
-                          src="/WhatsApp Image 2026-01-29 at 3.24.28 PM.jpeg"
+                          src="/product-side.jpeg"
                           alt="Free Mop Attachment"
                           className="w-full h-auto object-contain max-h-[120px] group-hover:scale-105 transition-transform duration-700"
                           onError={(e) => {
@@ -218,7 +223,7 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
                           }}
                         />
                         <img
-                          src="/WhatsApp Image 2026-01-29 at 3.24.28 PM - Copy.jpeg"
+                          src="/product-side-copy.jpeg"
                           alt="Free Mop Attachment"
                           className="w-full h-auto object-contain max-h-[120px] group-hover:scale-105 transition-transform duration-700"
                           onError={(e) => {
@@ -302,17 +307,18 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
                     </div>
                     <button
                       onClick={() => {
-                        // Add PRO-18 to cart
+                        // Add PRO-18 to cart (max 5 per product)
                         setCart(prev => {
                           const existing = prev.find(item => item.id === 'pro18');
                           if (existing) {
+                            if (existing.qty >= 5) return prev;
                             return prev.map(item => item.id === 'pro18' ? { ...item, qty: item.qty + 1 } : item);
                           }
                           return [...prev, {
                             id: 'pro18',
                             name: lang === 'en' ? 'MAXIOS PRO-18' : lang === 'he' ? 'מקסיוס PRO-18' : 'ماكسيوس PRO-18',
-                            price: '₪1,899',
-                            img: '/WhatsApp Image 2026-01-29 at 4.37.53 PM.jpeg',
+                            price: 1899,
+                            img: '/hero-poster.jpeg',
                             qty: 1
                           }];
                         });
@@ -320,7 +326,7 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
                       }}
                       className="w-full md:w-auto px-12 py-5 bg-orange-600 text-white font-black uppercase text-sm tracking-wider hover:bg-white hover:text-black transition-all duration-300 shadow-[0_0_40px_rgba(234,88,12,0.3)] flex items-center justify-center gap-3"
                     >
-                      {lang === 'en' ? 'ORDER NOW' : lang === 'he' ? 'לקנו עכשיו' : 'اطلب الآن'}
+                      {lang === 'en' ? 'ORDER NOW' : lang === 'he' ? 'לקנות עכשיו' : 'اطلب الآن'}
                     </button>
                   </div>
                 </div>

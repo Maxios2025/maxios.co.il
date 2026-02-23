@@ -75,14 +75,29 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ lang }) => {
     // Remove spaces from email
     const cleanEmail = value.replace(/\s/g, '');
     setFormData({ ...formData, email: cleanEmail });
-    setFieldErrors({ ...fieldErrors, email: validateEmail(cleanEmail) });
+    // Clear error while typing
+    if (fieldErrors.email) setFieldErrors({ ...fieldErrors, email: '' });
   };
 
   const handlePhoneChange = (value: string) => {
     // Only allow digits, max 10
     const digitsOnly = value.replace(/\D/g, '').slice(0, 10);
     setFormData({ ...formData, phone: digitsOnly });
-    setFieldErrors({ ...fieldErrors, phone: digitsOnly.length > 0 && digitsOnly.length !== 10 ? t.phoneError : '' });
+    // Clear error while typing
+    if (fieldErrors.phone) setFieldErrors({ ...fieldErrors, phone: '' });
+  };
+
+  // Validate on blur (when user leaves the field)
+  const handleEmailBlur = () => {
+    if (formData.email.length > 0) {
+      setFieldErrors({ ...fieldErrors, email: validateEmail(formData.email) });
+    }
+  };
+
+  const handlePhoneBlur = () => {
+    if (formData.phone.length > 0) {
+      setFieldErrors({ ...fieldErrors, phone: validatePhone(formData.phone) });
+    }
   };
 
   const isFormValid = () => {
@@ -124,8 +139,6 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ lang }) => {
       }).then(result => {
         if (result.error) {
           console.error('Firebase save error:', result.error);
-        } else {
-          console.log('Message saved to Firebase successfully!');
         }
       }).catch(err => console.error('Firebase error:', err));
 
@@ -144,7 +157,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ lang }) => {
           reply_to: 'service@maxios.co.il'
         },
         '_jL_0gQsRkGzlKdZw'
-      ).then(() => console.log('Email sent successfully!')).catch(err => console.log('EmailJS error:', err.text || err));
+      ).catch(err => console.error('EmailJS error:', err.text || err));
 
       // Send Telegram notification to support group
       fetch('/api/send-telegram', {
@@ -159,7 +172,7 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ lang }) => {
             message: formData.message
           }
         })
-      }).then(() => console.log('Telegram notification sent!')).catch(err => console.log('Telegram error:', err));
+      }).catch(err => console.error('Telegram error:', err));
 
       setSubmitted(true);
     } catch (err: any) {
@@ -216,12 +229,12 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ lang }) => {
                     {fieldErrors.name && <p className="text-red-500 text-[10px] mt-1">{fieldErrors.name}</p>}
                   </div>
                   <div>
-                    <input required placeholder={t.email} type="email" value={formData.email} onChange={e => handleEmailChange(e.target.value)} className={`w-full bg-white/5 border ${fieldErrors.email ? 'border-red-500' : 'border-white/10'} p-4 text-white text-xs outline-none focus:border-orange-500`} />
+                    <input required placeholder={t.email} type="email" value={formData.email} onChange={e => handleEmailChange(e.target.value)} onBlur={handleEmailBlur} className={`w-full bg-white/5 border ${fieldErrors.email ? 'border-red-500' : 'border-white/10'} p-4 text-white text-xs outline-none focus:border-orange-500`} />
                     {fieldErrors.email && <p className="text-red-500 text-[10px] mt-1">{fieldErrors.email}</p>}
                   </div>
                 </div>
                 <div>
-                  <input required placeholder={t.phone} type="tel" value={formData.phone} onChange={e => handlePhoneChange(e.target.value)} className={`w-full bg-white/5 border ${fieldErrors.phone ? 'border-red-500' : 'border-white/10'} p-4 text-white text-xs outline-none focus:border-orange-500`} dir="ltr" />
+                  <input required placeholder={t.phone} type="tel" value={formData.phone} onChange={e => handlePhoneChange(e.target.value)} onBlur={handlePhoneBlur} className={`w-full bg-white/5 border ${fieldErrors.phone ? 'border-red-500' : 'border-white/10'} p-4 text-white text-xs outline-none focus:border-orange-500`} dir="ltr" />
                   {fieldErrors.phone && <p className="text-red-500 text-[10px] mt-1">{fieldErrors.phone}</p>}
                 </div>
                 <textarea required placeholder={t.message} rows={4} value={formData.message} onChange={e => setFormData({...formData, message: e.target.value})} className="w-full bg-white/5 border border-white/10 p-4 text-white text-xs resize-none outline-none focus:border-orange-500" />

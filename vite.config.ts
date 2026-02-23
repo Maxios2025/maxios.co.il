@@ -33,7 +33,6 @@ export default defineConfig(({ mode }) => {
             'vendor-react': ['react', 'react-dom', 'react-router-dom'],
             'vendor-framer': ['framer-motion'],
             'vendor-firebase': ['firebase/app', 'firebase/firestore', 'firebase/auth'],
-            'vendor-stripe': ['@stripe/stripe-js', '@stripe/react-stripe-js'],
           }
         }
       },

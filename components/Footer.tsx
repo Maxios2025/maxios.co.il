@@ -94,7 +94,7 @@ export const Footer: React.FC<FooterProps> = ({ lang, onNavigate, onAdminLogin }
                 </button>
               </li>
               <li>
-                <button onClick={() => { onNavigate('products'); scrollToTop(); }} className="text-white/50 hover:text-orange-500 transition-colors text-sm">
+                <button onClick={() => { onNavigate('home'); scrollToTop(); }} className="text-white/50 hover:text-orange-500 transition-colors text-sm">
                   {t.products}
                 </button>
               </li>

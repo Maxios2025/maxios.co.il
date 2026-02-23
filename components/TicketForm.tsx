@@ -21,6 +21,7 @@ export const TicketForm: React.FC<TicketFormProps> = ({ lang, category, onBack }
   });
   const [submitted, setSubmitted] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formErrors, setFormErrors] = useState<{[key: string]: string}>({});
 
   const isRTL = lang === 'he' || lang === 'ar';
 
@@ -61,7 +62,10 @@ export const TicketForm: React.FC<TicketFormProps> = ({ lang, category, onBack }
         descriptionPlaceholder: "Please provide detailed information about your issue. Include any error messages, symptoms, or relevant details that will help us assist you faster.",
         submit: "Submit Ticket",
         submitting: "Submitting...",
-        required: "Required field"
+        required: "Required field",
+        errPhone: "Phone must be 10 digits",
+        errEmail: "Email must contain @",
+        errName: "Name cannot contain numbers"
       },
       success: {
         title: "Ticket Submitted Successfully",
@@ -100,7 +104,10 @@ export const TicketForm: React.FC<TicketFormProps> = ({ lang, category, onBack }
         descriptionPlaceholder: "אנא ספק מידע מפורט על הבעיה שלך. כלול הודעות שגיאה, תסמינים או פרטים רלוונטיים שיעזרו לנו לסייע לך מהר יותר.",
         submit: "שלח כרטיס",
         submitting: "שולח...",
-        required: "שדה חובה"
+        required: "שדה חובה",
+        errPhone: "מספר טלפון חייב להיות 10 ספרות",
+        errEmail: "אימייל חייב להכיל @",
+        errName: "שם לא יכול להכיל מספרים"
       },
       success: {
         title: "הכרטיס נשלח בהצלחה",
@@ -139,7 +146,10 @@ export const TicketForm: React.FC<TicketFormProps> = ({ lang, category, onBack }
         descriptionPlaceholder: "يرجى تقديم معلومات مفصلة حول مشكلتك. قم بتضمين أي رسائل خطأ أو أعراض أو تفاصيل ذات صلة ستساعدنا في مساعدتك بشكل أسرع.",
         submit: "إرسال التذكرة",
         submitting: "جاري الإرسال...",
-        required: "حقل مطلوب"
+        required: "حقل مطلوب",
+        errPhone: "يجب أن يتكون رقم الهاتف من 10 أرقام",
+        errEmail: "البريد الإلكتروني يجب أن يحتوي على @",
+        errName: "الاسم لا يمكن أن يحتوي على أرقام"
       },
       success: {
         title: "تم إرسال التذكرة بنجاح",
@@ -155,8 +165,63 @@ export const TicketForm: React.FC<TicketFormProps> = ({ lang, category, onBack }
   const t = content[lang];
   const CategoryIcon = categoryIcons[category] || HelpCircle;
 
+  // Handle name change - remove numbers
+  const handleNameChange = (value: string) => {
+    const cleanName = value.replace(/[0-9]/g, '');
+    setFormData({...formData, name: cleanName});
+    if (/\d/.test(value)) {
+      setFormErrors(prev => ({...prev, name: t.form.errName}));
+    } else {
+      setFormErrors(prev => {
+        const { name, ...rest } = prev;
+        return rest;
+      });
+    }
+  };
+
+  // Handle phone change - only digits, max 10
+  const handlePhoneChange = (value: string) => {
+    const digitsOnly = value.replace(/\D/g, '').slice(0, 10);
+    setFormData({...formData, phone: digitsOnly});
+    // Clear error while typing
+    if (formErrors.phone) setFormErrors(prev => { const { phone, ...rest } = prev; return rest; });
+  };
+
+  // Handle email change - validate format
+  const handleEmailChange = (value: string) => {
+    const cleanEmail = value.replace(/\s/g, '');
+    setFormData({...formData, email: cleanEmail});
+    // Clear error while typing
+    if (formErrors.email) setFormErrors(prev => { const { email, ...rest } = prev; return rest; });
+  };
+
+  // Validate on blur (when user leaves the field)
+  const handlePhoneBlur = () => {
+    if (formData.phone.length > 0 && formData.phone.length !== 10) {
+      setFormErrors(prev => ({...prev, phone: t.form.errPhone}));
+    }
+  };
+
+  const handleEmailBlur = () => {
+    if (formData.email.length > 0 && !formData.email.includes('@')) {
+      setFormErrors(prev => ({...prev, email: t.form.errEmail}));
+    }
+  };
+
+  // Validate form before submit
+  const validateForm = () => {
+    const errors: {[key: string]: string} = {};
+    if (/\d/.test(formData.name)) errors.name = t.form.errName;
+    if (!formData.email.includes('@')) errors.email = t.form.errEmail;
+    const phoneDigits = formData.phone.replace(/\D/g, '');
+    if (phoneDigits.length !== 10) errors.phone = t.form.errPhone;
+    setFormErrors(errors);
+    return Object.keys(errors).length === 0;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!validateForm()) return;
     setIsSubmitting(true);
 
     // Send Telegram notification
@@ -285,10 +350,11 @@ export const TicketForm: React.FC<TicketFormProps> = ({ lang, category, onBack }
               type="text"
               required
               value={formData.name}
-              onChange={(e) => setFormData({...formData, name: e.target.value})}
+              onChange={(e) => handleNameChange(e.target.value)}
               placeholder={t.form.namePlaceholder}
-              className={`w-full bg-black/50 border border-white/10 p-4 text-white placeholder:text-white/30 focus:border-orange-500 focus:outline-none transition-colors ${isRTL ? 'text-right' : ''}`}
+              className={`w-full bg-black/50 border ${formErrors.name ? 'border-red-500' : 'border-white/10'} p-4 text-white placeholder:text-white/30 focus:border-orange-500 focus:outline-none transition-colors ${isRTL ? 'text-right' : ''}`}
             />
+            {formErrors.name && <p className="text-red-500 text-xs mt-1">{formErrors.name}</p>}
           </div>
 
           {/* Email */}
@@ -300,10 +366,12 @@ export const TicketForm: React.FC<TicketFormProps> = ({ lang, category, onBack }
               type="email"
               required
               value={formData.email}
-              onChange={(e) => setFormData({...formData, email: e.target.value})}
+              onChange={(e) => handleEmailChange(e.target.value)}
+              onBlur={handleEmailBlur}
               placeholder={t.form.emailPlaceholder}
-              className={`w-full bg-black/50 border border-white/10 p-4 text-white placeholder:text-white/30 focus:border-orange-500 focus:outline-none transition-colors ${isRTL ? 'text-right' : ''}`}
+              className={`w-full bg-black/50 border ${formErrors.email ? 'border-red-500' : 'border-white/10'} p-4 text-white placeholder:text-white/30 focus:border-orange-500 focus:outline-none transition-colors ${isRTL ? 'text-right' : ''}`}
             />
+            {formErrors.email && <p className="text-red-500 text-xs mt-1">{formErrors.email}</p>}
           </div>
         </div>
 
@@ -318,10 +386,13 @@ export const TicketForm: React.FC<TicketFormProps> = ({ lang, category, onBack }
               type="tel"
               required
               value={formData.phone}
-              onChange={(e) => setFormData({...formData, phone: e.target.value})}
-              placeholder={t.form.phonePlaceholder}
-              className={`w-full bg-black/50 border border-white/10 p-4 text-white placeholder:text-white/30 focus:border-orange-500 focus:outline-none transition-colors ${isRTL ? 'text-right' : ''}`}
+              onChange={(e) => handlePhoneChange(e.target.value)}
+              onBlur={handlePhoneBlur}
+              placeholder="0501234567"
+              maxLength={10}
+              className={`w-full bg-black/50 border ${formErrors.phone ? 'border-red-500' : 'border-white/10'} p-4 text-white placeholder:text-white/30 focus:border-orange-500 focus:outline-none transition-colors ${isRTL ? 'text-right' : ''}`}
             />
+            {formErrors.phone && <p className="text-red-500 text-xs mt-1">{formErrors.phone}</p>}
           </div>
 
           {/* Order Number */}

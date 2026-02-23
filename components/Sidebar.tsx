@@ -34,7 +34,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, lan
   return (
     <>
       <motion.div
-        animate={{ top: window.innerWidth < 768 ? 16 : 32 }}
+        style={{ top: window.innerWidth < 768 ? 16 : 32 }}
         className={`fixed right-4 md:right-8 z-[500] flex gap-2 md:gap-4 transition-all duration-500 ${lang === 'he' || lang === 'ar' ? 'flex-row-reverse' : ''}`}
       >
         <button onClick={() => toggleOpen(true)} className="p-2 md:p-4 backdrop-blur-xl border transition-all group bg-white/5 border-white/10 text-white hover:bg-orange-500 hover:text-white">
