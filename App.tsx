@@ -5,6 +5,7 @@ import { motion, useScroll, useTransform } from 'framer-motion';
 import { Logo } from './components/Logo';
 import { Sidebar } from './components/Sidebar';
 import { AuthOverlay } from './components/AuthOverlay';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { fetchProducts } from './lib/firebase';
 
 // Lazy load pages for better performance
@@ -20,6 +21,7 @@ const TermsPage = lazy(() => import('./pages/TermsPage'));
 const WarrantyPage = lazy(() => import('./pages/WarrantyPage'));
 
 export type Language = 'he' | 'en' | 'ar';
+export type ViewState = 'home' | 'cart' | 'contact' | 'support' | 'account' | 'admin' | 'privacy' | 'about' | 'terms' | 'warranty';
 
 export interface Product {
   id: string;
@@ -34,7 +36,7 @@ export interface Product {
 export interface CartItem {
   id: string;
   name: string;
-  price: string;
+  price: number;
   img: string;
   qty: number;
 }
@@ -70,7 +72,19 @@ function LoadingScreen() {
 // Main App Content with Router
 function AppContent() {
   const [lang, setLang] = useState<Language>('he');
-  const [cart, setCart] = useState<CartItem[]>([]);
+  const [cart, setCart] = useState<CartItem[]>(() => {
+    const saved = localStorage.getItem('maxios_cart');
+    if (!saved) return [];
+    try {
+      const parsed = JSON.parse(saved);
+      // Sanitize: ensure every item has a valid numeric price
+      return parsed.filter((item: any) => item && item.id).map((item: any) => ({
+        ...item,
+        price: typeof item.price === 'number' && !isNaN(item.price) ? item.price : 0,
+        qty: typeof item.qty === 'number' && item.qty > 0 ? item.qty : 1,
+      }));
+    } catch { return []; }
+  });
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
@@ -85,6 +99,11 @@ function AppContent() {
 
   // Determine if we're on home page for logo animation
   const isHomePage = location.pathname === '/' || location.pathname === '/home';
+
+  // Persist cart to localStorage
+  useEffect(() => {
+    localStorage.setItem('maxios_cart', JSON.stringify(cart));
+  }, [cart]);
 
   // Update HTML lang attribute when language changes
   useEffect(() => {
@@ -172,18 +191,10 @@ function AppContent() {
 
       <motion.div
         onClick={handleLogoClick}
-        initial={false}
-        animate={{
-          scale: isHomePage ? undefined : logoScaleValue,
-          y: isHomePage ? undefined : logoYTarget,
-          x: isHomePage ? undefined : logoXTarget,
-          opacity: 1,
-          color: '#ffffff'
-        }}
-        style={isHomePage ? {
-          scale: logoScale, y: logoY, x: logoX,
-          position: 'fixed', top: '50%', left: '50%', translateX: '-50%', translateY: '-50%', zIndex: 600, cursor: 'pointer'
-        } : {
+        style={{
+          scale: isHomePage ? logoScale : logoScaleValue,
+          y: isHomePage ? logoY : logoYTarget,
+          x: isHomePage ? logoX : logoXTarget,
           position: 'fixed', top: '50%', left: '50%', translateX: '-50%', translateY: '-50%', zIndex: 600, cursor: 'pointer'
         }}
       >
@@ -228,6 +239,17 @@ function AppContent() {
           <Route path="/about" element={<AboutPage lang={lang} />} />
           <Route path="/terms" element={<TermsPage lang={lang} />} />
           <Route path="/warranty" element={<WarrantyPage lang={lang} />} />
+          <Route path="*" element={
+            <div className="min-h-screen flex items-center justify-center px-6">
+              <div className="text-center space-y-6">
+                <h1 className="text-6xl md:text-8xl font-black text-orange-500">404</h1>
+                <p className="text-white/50 text-lg">{lang === 'en' ? 'Page not found' : lang === 'he' ? 'הדף לא נמצא' : 'الصفحة غير موجودة'}</p>
+                <button onClick={() => navigate('/')} className="px-8 py-3 bg-orange-600 text-white font-bold uppercase text-sm hover:bg-orange-500 transition-colors">
+                  {lang === 'en' ? 'Go Home' : lang === 'he' ? 'חזרה לדף הבית' : 'العودة للرئيسية'}
+                </button>
+              </div>
+            </div>
+          } />
         </Routes>
       </Suspense>
 
@@ -248,8 +270,10 @@ function AppContent() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <AppContent />
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <AppContent />
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

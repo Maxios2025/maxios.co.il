@@ -1,9 +1,13 @@
-// Google Sheets Web App URL for storing orders
-const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzsIJQvWBVDI4MWVp195oQDv0rnNYG32GCGQ8GVIXBSCkB8amDDq6CXly-7wYA24BcT/exec';
+// All secrets loaded from environment variables
+const GOOGLE_SHEETS_URL = process.env.GOOGLE_SHEETS_URL || '';
 
 export default async function handler(req, res) {
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // CORS — restrict to known origins
+  const origin = req.headers.origin || '';
+  const allowed = ['https://maxios.co.il', 'https://www.maxios.co.il', 'http://localhost:3000'];
+  if (allowed.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -17,32 +21,25 @@ export default async function handler(req, res) {
 
   const { type, data } = req.body || {};
 
-  // Log EVERYTHING we received for debugging
-  console.log('=== TELEGRAM API DEBUG ===');
-  console.log('Full req.body:', JSON.stringify(req.body));
-  console.log('type:', type);
-  console.log('data:', JSON.stringify(data));
-  console.log('data.orderNumber:', data?.orderNumber);
-  console.log('=========================');
-
   // Check if we have the required data
   if (!type || !data) {
     return res.status(400).json({ error: 'Missing type or data', received: { type, data } });
   }
 
-  const BOT_TOKEN = '8543792815:AAFGUJX2jred2jChv3sIbV5E5MdLpa-I4No';
+  const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+  if (!BOT_TOKEN) {
+    return res.status(500).json({ error: 'Telegram bot not configured' });
+  }
 
   // Different chat IDs for different notification types
-  const ORDERS_CHAT_ID = '-5107622756';    // Maxios orders group
-  const SUPPORT_CHAT_ID = '-5192023854';   // maxios support group
+  const ORDERS_CHAT_ID = process.env.TELEGRAM_ORDERS_CHAT_ID || '';
+  const SUPPORT_CHAT_ID = process.env.TELEGRAM_SUPPORT_CHAT_ID || '';
 
   let message = '';
 
   if (type === 'order') {
     // Order notification - plain text (no markdown)
-    console.log('Processing ORDER - raw orderNumber value:', data.orderNumber, 'type:', typeof data.orderNumber);
     const orderNumber = data.orderNumber || 'N/A';
-    console.log('Final orderNumber:', orderNumber);
     const customerName = data.customerName || '';
     const customerEmail = data.customerEmail || '';
     const customerPhone = data.customerPhone || '';
@@ -137,8 +134,6 @@ export default async function handler(req, res) {
           total,
           paymentMethod: paymentMethod.replace(/[💵💳]/g, '').trim()
         };
-        console.log('Sending to Google Sheets:', sheetData);
-
         const sheetResponse = await fetch(GOOGLE_SHEETS_URL, {
           method: 'POST',
           redirect: 'follow',
@@ -146,8 +141,7 @@ export default async function handler(req, res) {
           body: JSON.stringify(sheetData)
         });
 
-        const sheetResult = await sheetResponse.text();
-        console.log('Google Sheets response:', sheetResult);
+        await sheetResponse.text();
       } catch (sheetError) {
         console.error('Failed to save to Google Sheets:', sheetError.message);
       }
