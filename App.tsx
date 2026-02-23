@@ -6,7 +6,7 @@ import { Logo } from './components/Logo';
 import { Sidebar } from './components/Sidebar';
 import { AuthOverlay } from './components/AuthOverlay';
 import { ErrorBoundary } from './components/ErrorBoundary';
-import { fetchProducts } from './lib/firebase';
+import { fetchProducts, fetchPromoCodes } from './lib/firebase';
 
 // Lazy load pages for better performance
 const HomePage = lazy(() => import('./pages/HomePage'));
@@ -136,9 +136,18 @@ function AppContent() {
     };
     loadProducts();
 
-    // Load Codes
-    const savedCodes = localStorage.getItem('maxios_promo_codes');
-    if (savedCodes) setPromoCodes(JSON.parse(savedCodes));
+    // Load Promo Codes from Firebase
+    const loadPromoCodes = async () => {
+      const localCodes = localStorage.getItem('maxios_promo_codes');
+      if (localCodes) setPromoCodes(JSON.parse(localCodes));
+
+      const dbCodes = await fetchPromoCodes();
+      if (dbCodes && dbCodes.length > 0) {
+        setPromoCodes(dbCodes);
+        localStorage.setItem('maxios_promo_codes', JSON.stringify(dbCodes));
+      }
+    };
+    loadPromoCodes();
 
     return () => window.removeEventListener('resize', checkMobile);
   }, []);

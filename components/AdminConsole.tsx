@@ -3,7 +3,7 @@ import React, { useState, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LogOut, Check, X, Clock, Ticket, Plus, Trash2, Edit2, Camera, Shield } from 'lucide-react';
 import { Language, PromoCode, Product } from '../App';
-import { saveProduct, deleteProductFromDB } from '../lib/firebase';
+import { saveProduct, deleteProductFromDB, savePromoCode, deletePromoCodeFromDB } from '../lib/firebase';
 
 interface AdminConsoleProps {
   lang: Language;
@@ -49,6 +49,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ lang, onLogout, prom
     const updated = [...promoCodes, code];
     setPromoCodes(updated);
     localStorage.setItem('maxios_promo_codes', JSON.stringify(updated));
+    savePromoCode(code).catch(err => console.error('Firebase promo save error:', err));
     setNewCode("");
   };
 
@@ -56,6 +57,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ lang, onLogout, prom
     const updated = promoCodes.filter(c => c.code !== codeStr);
     setPromoCodes(updated);
     localStorage.setItem('maxios_promo_codes', JSON.stringify(updated));
+    deletePromoCodeFromDB(codeStr).catch(err => console.error('Firebase promo delete error:', err));
   };
 
   const handleSaveProduct = async () => {

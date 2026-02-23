@@ -231,6 +231,40 @@ export const getUserProfile = async (userId: string) => {
   }
 };
 
+// Promo Codes
+export const fetchPromoCodes = async () => {
+  try {
+    const codesRef = collection(db, 'promo_codes');
+    const querySnapshot = await getDocs(codesRef);
+    return querySnapshot.docs.map(doc => doc.data() as { code: string; percent: number; expiryHours: number; createdAt: string });
+  } catch (error) {
+    console.error('Error fetching promo codes:', error);
+    return null;
+  }
+};
+
+export const savePromoCode = async (code: { code: string; percent: number; expiryHours: number; createdAt: string }) => {
+  try {
+    const codeRef = doc(db, 'promo_codes', code.code);
+    await setDoc(codeRef, code);
+    return { error: null };
+  } catch (error) {
+    console.error('Error saving promo code:', error);
+    return { error };
+  }
+};
+
+export const deletePromoCodeFromDB = async (codeStr: string) => {
+  try {
+    const codeRef = doc(db, 'promo_codes', codeStr);
+    await deleteDoc(codeRef);
+    return { error: null };
+  } catch (error) {
+    console.error('Error deleting promo code:', error);
+    return { error };
+  }
+};
+
 // Orders
 export const saveOrder = async (order: Order) => {
   // Always save to localStorage first
