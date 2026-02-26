@@ -23,14 +23,21 @@ interface CartOverlayProps {
   onCheckout: () => void;
 }
 
-// Fixed single product — no cart needed
+// Fixed single product
 const PRODUCT = {
   id: 'pro18',
   name: 'MAXIOS PRO-18',
   price: 1899,
+  priceSecond: 1599,
   img: '/hero-poster.jpeg',
-  qty: 1,
 };
+
+// Calculate total for qty: odd units = 1899, even units = 1599
+function calcSubtotal(qty: number) {
+  const pairs = Math.floor(qty / 2);
+  const remainder = qty % 2;
+  return pairs * (PRODUCT.price + PRODUCT.priceSecond) + remainder * PRODUCT.price;
+}
 
 export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCheckout }) => {
   // Step management - which step is currently being edited
@@ -38,6 +45,9 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderComplete, setOrderComplete] = useState(false);
   const [placedOrderNumber, setPlacedOrderNumber] = useState("");
+
+  // Quantity
+  const [qty, setQty] = useState(1);
 
   // Customer info
   const [customerName, setCustomerName] = useState("");
@@ -204,7 +214,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
     setPromoInput("");
   };
 
-  const subtotal = PRODUCT.price * PRODUCT.qty;
+  const subtotal = calcSubtotal(qty);
   const discountAmount = appliedPromo ? (subtotal * appliedPromo.percent / 100) : 0;
   const total = subtotal - discountAmount;
 
@@ -233,7 +243,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
           street: customerStreet,
           zip: customerZip
         },
-        items: [{ id: PRODUCT.id, name: PRODUCT.name, qty: PRODUCT.qty, price: PRODUCT.price }],
+        items: [{ id: PRODUCT.id, name: PRODUCT.name, qty, price: subtotal }],
         subtotal: subtotal.toFixed(2),
         discount: appliedPromo ? discountAmount.toFixed(2) : '0',
         promoCode: appliedPromo?.code || null,
@@ -251,7 +261,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
       });
 
       // Send Telegram notification to orders group
-      const itemsList = `• ${PRODUCT.name} x${PRODUCT.qty} - ₪${PRODUCT.price}`;
+      const itemsList = `• ${PRODUCT.name} x${qty} - ₪${subtotal}`;
       const telegramPayload = {
         type: 'order',
         data: {
@@ -274,7 +284,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
       }).then(res => res.json()).catch(err => console.error('Telegram error:', err));
 
       // Send order confirmation email to customer
-      const orderItemsHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;border-bottom:1px solid #1e1e1e;"><tr><td width="70" valign="top" style="padding:12px 0 16px;"><img src="https://maxios.co.il${PRODUCT.img}" alt="${escapeHtml(PRODUCT.name)}" width="60" height="60" style="display:block;width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid #2a2a2a;" /></td><td valign="top" style="padding:12px 16px 16px;"><p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">${escapeHtml(PRODUCT.name)}</p><p style="margin:0;font-size:12px;color:#888888;font-family:Arial,Helvetica,sans-serif;">כמות: ${PRODUCT.qty}</p></td><td valign="top" align="left" style="padding:12px 0 16px;"><p style="margin:0;font-size:16px;font-weight:900;color:#ea580c;font-family:Arial,Helvetica,sans-serif;">&#8362;${PRODUCT.price}</p></td></tr></table>`;
+      const orderItemsHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;border-bottom:1px solid #1e1e1e;"><tr><td width="70" valign="top" style="padding:12px 0 16px;"><img src="https://maxios.co.il${PRODUCT.img}" alt="${escapeHtml(PRODUCT.name)}" width="60" height="60" style="display:block;width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid #2a2a2a;" /></td><td valign="top" style="padding:12px 16px 16px;"><p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">${escapeHtml(PRODUCT.name)}</p><p style="margin:0;font-size:12px;color:#888888;font-family:Arial,Helvetica,sans-serif;">כמות: ${qty}</p></td><td valign="top" align="left" style="padding:12px 0 16px;"><p style="margin:0;font-size:16px;font-weight:900;color:#ea580c;font-family:Arial,Helvetica,sans-serif;">&#8362;${subtotal}</p></td></tr></table>`;
 
       const discountRow = appliedPromo ? `<tr><td style="padding:14px 0;font-size:14px;color:#22c55e;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">הנחה (${appliedPromo.code} - ${appliedPromo.percent}%)</td><td align="left" style="padding:14px 0;font-size:14px;color:#22c55e;font-weight:bold;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">-&#8362;${discountAmount.toFixed(0)}</td></tr>` : '';
       const paymentLabel = paymentMethod === 'cod' ? 'תשלום במסירה' : 'כרטיס אשראי';
@@ -334,7 +344,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
             customer_email: customerEmail,
             customer_phone: customerPhone,
             shipping_address: `${customerStreet}, ${customerCity} ${customerZip}`,
-            order_items: `${PRODUCT.name} x${PRODUCT.qty} - ₪${PRODUCT.price}`,
+            order_items: `${PRODUCT.name} x${qty} - ₪${subtotal}`,
             order_total: total.toFixed(0),
             payment_method: paymentMethod === 'cod' ? 'תשלום במסירה' : 'כרטיס אשראי',
             message_html: fullEmailHtml
@@ -343,7 +353,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
         ).catch(err => console.error('EmailJS error:', err));
       }
 
-      trackPurchase(currentOrderNumber, total, [{ name: PRODUCT.name, price: PRODUCT.price, qty: PRODUCT.qty }]);
+      trackPurchase(currentOrderNumber, total, [{ name: PRODUCT.name, price: subtotal, qty }]);
       setIsProcessing(false);
       setPlacedOrderNumber(currentOrderNumber);
       setOrderComplete(true);
@@ -549,6 +559,13 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
     }
   }[lang];
 
+  // Auto-redirect to home after 10 seconds
+  React.useEffect(() => {
+    if (!orderComplete) return;
+    const timer = setTimeout(() => { onCheckout(); }, 10000);
+    return () => clearTimeout(timer);
+  }, [orderComplete, onCheckout]);
+
   if (orderComplete) {
     return (
       <div className="max-w-3xl mx-auto px-6 py-20 text-center">
@@ -560,6 +577,9 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
         <div className="inline-block p-6 border border-white/10 bg-white/5">
           <p className="text-white/40 text-sm mb-2">{t.orderNumber}</p>
           <p className="text-orange-500 text-2xl font-mono font-bold">{placedOrderNumber}</p>
+          <p className="text-white/50 text-xs mt-3">
+            {lang === 'en' ? 'Save your order number' : lang === 'he' ? 'שמרו את מספר ההזמנה' : 'احفظ رقم الطلب'}
+          </p>
         </div>
       </div>
     );
@@ -1038,10 +1058,17 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-white font-medium text-sm truncate">{PRODUCT.name}</p>
-                  <p className="text-white/40 text-xs mt-1">{t.quantity}: {PRODUCT.qty}</p>
+                  <div className="flex items-center gap-2 mt-2">
+                    <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-7 h-7 border border-white/20 text-white/60 hover:border-orange-500 hover:text-orange-500 flex items-center justify-center transition-colors text-sm">−</button>
+                    <span className="text-white text-sm font-bold w-6 text-center">{qty}</span>
+                    <button onClick={() => setQty(q => q + 1)} className="w-7 h-7 border border-white/20 text-white/60 hover:border-orange-500 hover:text-orange-500 flex items-center justify-center transition-colors text-sm">+</button>
+                  </div>
                 </div>
                 <div className="text-right">
                   <p className="text-white font-bold">₪{PRODUCT.price.toLocaleString()}</p>
+                  {qty >= 2 && (
+                    <p className="text-orange-400 text-xs mt-1">{lang === 'en' ? '2nd unit' : lang === 'he' ? 'יח׳ שני' : 'الوحدة الثانية'}: ₪{PRODUCT.priceSecond.toLocaleString()}</p>
+                  )}
                 </div>
               </div>
             </div>

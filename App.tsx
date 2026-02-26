@@ -160,15 +160,15 @@ function AppContent() {
     setIsCheckoutOpen(true);
   }, []);
 
-  // Close checkout: restore scroll position & unlock body
+  // Close checkout: navigate home past the logo intro
   const closeCheckout = useCallback(() => {
     setIsCheckoutOpen(false);
     document.body.style.overflow = '';
-    // Restore scroll position after React re-renders
+    navigate('/');
     requestAnimationFrame(() => {
-      window.scrollTo(0, savedScrollRef.current);
+      window.scrollTo(0, 400);
     });
-  }, []);
+  }, [navigate]);
 
   const handleLogoClick = useCallback(() => {
     navigate('/');
@@ -283,7 +283,7 @@ function AppContent() {
 
       {/* Checkout Overlay — opens when user clicks "Order Now" */}
       {isCheckoutOpen && (
-        <div className="fixed inset-0 z-[100] bg-black overflow-y-auto" style={{ background: 'linear-gradient(180deg, #000000 0%, #0a0a0a 50%, #000000 100%)' }}>
+        <div className="fixed inset-0 z-[700] bg-black overflow-y-auto" style={{ background: 'linear-gradient(180deg, #000000 0%, #0a0a0a 50%, #000000 100%)' }}>
           <div className="fixed inset-0 pointer-events-none">
             <div className="absolute top-0 left-1/4 w-96 h-96 bg-orange-500/5 rounded-full blur-[150px]" />
             <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-orange-600/5 rounded-full blur-[150px]" />

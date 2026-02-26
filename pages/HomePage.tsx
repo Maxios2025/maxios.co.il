@@ -325,12 +325,15 @@ export default function HomePage({ lang, isRTL, onOpenCheckout, onAdminLogin }: 
                       <span className="px-3 py-1.5 bg-orange-600 text-black text-[15px] font-black">{lang === 'en' ? '25% OFF' : lang === 'he' ? '25% הנחה' : '25% خصم'}</span>
                     </div>
                     <p className="text-white/40 text-xs">{lang === 'en' ? 'Price includes VAT' : lang === 'he' ? 'המחיר כולל מע״מ' : 'السعر شامل ضريبة القيمة المضافة'}</p>
+                    <span className="px-5 py-2.5 bg-cyan-600 text-white text-[18px] font-black uppercase tracking-wider inline-flex items-center gap-2">
+                      {lang === 'en' ? '2ND UNIT FOR ONLY ₪1,599' : lang === 'he' ? 'יח׳ שני ב-₪1,599 בלבד' : 'الوحدة الثانية بـ ₪1,599 فقط'}
+                    </span>
                     <div className="flex flex-wrap gap-3">
-                      <span className="px-5 py-2.5 bg-green-600 text-white text-[18px] font-black uppercase tracking-wider flex items-center gap-2">
+                      <span className="px-4 py-2 bg-green-600 text-white text-[14px] font-black uppercase tracking-wider flex items-center gap-2">
                         ✓ {lang === 'en' ? 'FREE SHIPPING' : lang === 'he' ? 'משלוח חינם' : 'شحن مجاني'}
                       </span>
-                      <span className="px-5 py-2.5 bg-purple-600 text-white text-[18px] font-black uppercase tracking-wider flex items-center gap-2">
-                        🎁 {lang === 'en' ? 'FREE GIFT INCLUDED' : lang === 'he' ? 'מתנה חינם' : 'هدية مجانية'}
+                      <span className="px-4 py-2 bg-purple-600 text-white text-[14px] font-black uppercase tracking-wider flex items-center gap-2">
+                        🎁 {lang === 'en' ? 'FREE GIFT' : lang === 'he' ? 'מתנה חינם' : 'هدية مجانية'}
                       </span>
                     </div>
                     <button
