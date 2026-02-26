@@ -678,12 +678,12 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
                         className="p-4 border border-white/10 bg-white/[0.02] space-y-3"
                       >
                         <p className="text-white/50 text-xs text-center">{t.otpSentTo} <span className="text-orange-500 font-mono" dir="ltr">{customerPhone}</span></p>
-                        <div className="flex gap-2 max-w-sm mx-auto">
+                        <div className="flex gap-2 mx-auto w-full max-w-xs">
                           <input
                             type="text"
                             value={otpCode}
                             onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                            className="flex-1 bg-white/5 border border-white/10 p-3 text-white text-center text-xl tracking-[0.5em] font-mono outline-none focus:border-orange-500"
+                            className="flex-1 min-w-0 bg-white/5 border border-white/10 p-2.5 text-white text-center text-lg tracking-[0.3em] font-mono outline-none focus:border-orange-500"
                             placeholder="000000"
                             maxLength={6}
                             dir="ltr"
@@ -693,7 +693,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
                             type="button"
                             onClick={handleVerifyOTP}
                             disabled={otpCode.length !== 6 || otpLoading}
-                            className={`px-4 py-3 font-bold text-xs uppercase ${
+                            className={`px-3 py-2.5 font-bold text-[10px] uppercase whitespace-nowrap ${
                               otpCode.length === 6 && !otpLoading
                                 ? 'bg-orange-500 text-white hover:bg-orange-600'
                                 : 'bg-white/10 text-white/30 cursor-not-allowed'
