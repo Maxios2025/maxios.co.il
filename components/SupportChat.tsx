@@ -1,6 +1,7 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { GoogleGenAI } from "@google/genai";
+// Dynamic import to avoid loading GenAI in the main bundle
+const loadGenAI = () => import("@google/genai").then(m => m.GoogleGenAI);
 import { MessageCircle, Send, X, Loader2, UserRound, ShieldAlert, AlertTriangle } from 'lucide-react';
 import { Language, ViewState } from '../App';
 
@@ -283,7 +284,8 @@ export const SupportChat: React.FC<SupportChatProps> = ({ lang, setActiveView, i
     }
 
     try {
-      const ai = new GoogleGenAI({ apiKey });
+      const GenAI = await loadGenAI();
+      const ai = new GenAI({ apiKey });
 
       // Build conversation context
       const updatedHistory = [

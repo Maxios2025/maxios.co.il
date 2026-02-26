@@ -36,7 +36,10 @@ module.exports = async function handler(req, res) {
   const expiresAt = Date.now() + 5 * 60 * 1000;
 
   // Create HMAC hash of phone+code+expiry for stateless verification
-  const secret = process.env.OTP_SECRET || 'maxios-otp-secret-2026';
+  const secret = process.env.OTP_SECRET;
+  if (!secret) {
+    return res.status(500).json({ error: 'OTP service not configured' });
+  }
   const hash = crypto
     .createHmac('sha256', secret)
     .update(`${phoneNumber}:${code}:${expiresAt}`)

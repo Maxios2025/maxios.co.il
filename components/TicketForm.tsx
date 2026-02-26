@@ -388,7 +388,7 @@ export const TicketForm: React.FC<TicketFormProps> = ({ lang, category, onBack }
               value={formData.phone}
               onChange={(e) => handlePhoneChange(e.target.value)}
               onBlur={handlePhoneBlur}
-              placeholder="0501234567"
+              placeholder="05X-XXXXXXX"
               maxLength={10}
               className={`w-full bg-black/50 border ${formErrors.phone ? 'border-red-500' : 'border-white/10'} p-4 text-white placeholder:text-white/30 focus:border-orange-500 focus:outline-none transition-colors ${isRTL ? 'text-right' : ''}`}
             />

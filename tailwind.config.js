@@ -14,6 +14,15 @@ export default {
         arabic: ['Cairo', 'Tajawal', 'Noto Sans Arabic', 'sans-serif'],
         hebrew: ['IBM Plex Sans Hebrew', 'Arial Hebrew', 'sans-serif'],
       },
+      animation: {
+        'hero-bounce': 'hero-bounce 1.5s ease-in-out infinite',
+      },
+      keyframes: {
+        'hero-bounce': {
+          '0%, 100%': { transform: 'translateY(0)' },
+          '50%': { transform: 'translateY(10px)' },
+        },
+      },
     },
   },
   plugins: [],

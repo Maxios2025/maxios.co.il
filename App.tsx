@@ -1,16 +1,17 @@
 
-import React, { useState, useEffect, Suspense, lazy } from 'react';
+import React, { useState, useEffect, useCallback, useRef, Suspense, lazy } from 'react';
 import { BrowserRouter, Routes, Route, useNavigate, useLocation } from 'react-router-dom';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { Logo } from './components/Logo';
 import { Sidebar } from './components/Sidebar';
 import { AuthOverlay } from './components/AuthOverlay';
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { WhatsAppButton } from './components/WhatsAppButton';
+import { CartOverlay } from './components/CartOverlay';
 import { fetchProducts, fetchPromoCodes } from './lib/firebase';
 
 // Lazy load pages for better performance
 const HomePage = lazy(() => import('./pages/HomePage'));
-const CartPage = lazy(() => import('./pages/CartPage'));
 const ContactPage = lazy(() => import('./pages/ContactPage'));
 const SupportPage = lazy(() => import('./pages/SupportPage'));
 const AccountPage = lazy(() => import('./pages/AccountPage'));
@@ -21,7 +22,7 @@ const TermsPage = lazy(() => import('./pages/TermsPage'));
 const WarrantyPage = lazy(() => import('./pages/WarrantyPage'));
 
 export type Language = 'he' | 'en' | 'ar';
-export type ViewState = 'home' | 'cart' | 'contact' | 'support' | 'account' | 'admin' | 'privacy' | 'about' | 'terms' | 'warranty';
+export type ViewState = 'home' | 'contact' | 'support' | 'account' | 'admin' | 'privacy' | 'about' | 'terms' | 'warranty';
 
 export interface Product {
   id: string;
@@ -33,13 +34,6 @@ export interface Product {
   images?: string[];
 }
 
-export interface CartItem {
-  id: string;
-  name: string;
-  price: number;
-  img: string;
-  qty: number;
-}
 
 export interface PromoCode {
   code: string;
@@ -63,7 +57,7 @@ function LoadingScreen() {
     <div className="min-h-screen bg-black flex items-center justify-center">
       <div className="text-center">
         <div className="w-16 h-16 border-4 border-orange-500/20 border-t-orange-500 rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-white/40 text-sm tracking-widest uppercase">Loading...</p>
+        <p className="text-white/40 text-sm tracking-widest">...טוען</p>
       </div>
     </div>
   );
@@ -72,44 +66,21 @@ function LoadingScreen() {
 // Main App Content with Router
 function AppContent() {
   const [lang, setLang] = useState<Language>('he');
-  const [cart, setCart] = useState<CartItem[]>(() => {
-    const saved = localStorage.getItem('maxios_cart');
-    if (!saved) return [];
-    try {
-      const parsed = JSON.parse(saved);
-      // Drop any items with invalid/missing prices — user can re-add from homepage
-      const valid = parsed.filter((item: any) =>
-        item && item.id &&
-        typeof item.price === 'number' && !isNaN(item.price) && item.price > 0
-      );
-      if (valid.length !== parsed.length) {
-        localStorage.setItem('maxios_cart', JSON.stringify(valid));
-      }
-      return valid;
-    } catch {
-      localStorage.removeItem('maxios_cart');
-      return [];
-    }
-  });
   const [user, setUser] = useState<UserProfile | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [isCheckoutOpen, setIsCheckoutOpen] = useState(false);
+  const savedScrollRef = useRef(0);
   const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [promoCodes, setPromoCodes] = useState<PromoCode[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
-  const [isMobile, setIsMobile] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
 
   const navigate = useNavigate();
   const location = useLocation();
   const { scrollY } = useScroll();
 
-  // Determine if we're on home page for logo animation
   const isHomePage = location.pathname === '/' || location.pathname === '/home';
-
-  // Persist cart to localStorage
-  useEffect(() => {
-    localStorage.setItem('maxios_cart', JSON.stringify(cart));
-  }, [cart]);
 
   // Update HTML lang attribute when language changes
   useEffect(() => {
@@ -118,9 +89,18 @@ function AppContent() {
   }, [lang]);
 
   useEffect(() => {
-    const checkMobile = () => setIsMobile(window.innerWidth < 768);
-    checkMobile();
-    window.addEventListener('resize', checkMobile);
+    // Clean up old cart data from localStorage (cart removed — single product flow)
+    localStorage.removeItem('maxios_cart');
+
+    // Debounced resize handler to avoid layout thrashing
+    let resizeTimer: ReturnType<typeof setTimeout>;
+    const checkMobile = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        setIsMobile(window.innerWidth < 768);
+      }, 150);
+    };
+    window.addEventListener('resize', checkMobile, { passive: true });
 
     // Load Products - Show instantly, sync Firebase in background
     const loadProducts = async () => {
@@ -149,89 +129,109 @@ function AppContent() {
     };
     loadPromoCodes();
 
-    return () => window.removeEventListener('resize', checkMobile);
+    return () => {
+      window.removeEventListener('resize', checkMobile);
+      clearTimeout(resizeTimer);
+    };
   }, []);
 
   const isRTL = lang === 'ar' || lang === 'he';
 
-  // Mobile-aware logo transforms
+  // Cache dimension values to avoid reading from DOM on every render
+  const dimensionsRef = useRef({ w: window.innerWidth, h: window.innerHeight });
+  useEffect(() => {
+    dimensionsRef.current = { w: window.innerWidth, h: window.innerHeight };
+  }, [isMobile]);
+
   const logoScaleValue = isMobile ? 0.25 : 0.15;
   const logoYTarget = isMobile
-    ? -window.innerHeight / 2 + 40
-    : -window.innerHeight / 2 + 50;
-  const logoXTarget = -window.innerWidth / 2 + (isMobile ? 80 : 120);
+    ? -dimensionsRef.current.h / 2 + 40
+    : -dimensionsRef.current.h / 2 + 50;
+  const logoXTarget = -dimensionsRef.current.w / 2 + (isMobile ? 80 : 120);
 
   const logoScale = useTransform(scrollY, [0, 400], [1, logoScaleValue]);
   const logoY = useTransform(scrollY, [0, 400], [0, logoYTarget]);
   const logoX = useTransform(scrollY, [0, 400], [0, logoXTarget]);
 
-  const handleLogoClick = () => {
+  // Open checkout: save scroll position & lock body
+  const openCheckout = useCallback(() => {
+    savedScrollRef.current = window.scrollY;
+    document.body.style.overflow = 'hidden';
+    setIsCheckoutOpen(true);
+  }, []);
+
+  // Close checkout: restore scroll position & unlock body
+  const closeCheckout = useCallback(() => {
+    setIsCheckoutOpen(false);
+    document.body.style.overflow = '';
+    // Restore scroll position after React re-renders
+    requestAnimationFrame(() => {
+      window.scrollTo(0, savedScrollRef.current);
+    });
+  }, []);
+
+  const handleLogoClick = useCallback(() => {
     navigate('/');
     window.scrollTo({ top: 0, behavior: 'smooth' });
-  };
+  }, [navigate]);
 
-  const updateProducts = (newProducts: Product[]) => {
+  const updateProducts = useCallback((newProducts: Product[]) => {
     setProducts(newProducts);
-  };
+  }, []);
 
-  // Convert route to view for sidebar
   const getActiveView = () => {
     const path = location.pathname.replace('/', '') || 'home';
     return path as any;
   };
 
-  // Handle navigation from sidebar
-  const handleViewChange = (view: string) => {
+  const handleViewChange = useCallback((view: string) => {
     if (view === 'home') {
       navigate('/');
     } else {
       navigate(`/${view}`);
     }
-  };
+  }, [navigate]);
 
   return (
     <div
       className={`min-h-screen bg-black text-white selection:bg-orange-500 selection:text-white ${isRTL ? 'font-arabic' : ''}`}
       dir={isRTL ? 'rtl' : 'ltr'}
     >
+      {/* Skip to content — accessibility */}
+      <a href="#main-content" className="sr-only focus:not-sr-only focus:absolute focus:top-4 focus:left-4 focus:z-[9999] focus:px-4 focus:py-2 focus:bg-orange-500 focus:text-white focus:font-bold">
+        {lang === 'en' ? 'Skip to content' : lang === 'he' ? 'דלג לתוכן' : 'تخطي إلى المحتوى'}
+      </a>
+
       <Sidebar
         activeView={getActiveView()}
         setActiveView={handleViewChange}
         lang={lang}
         setLang={setLang}
-        cartCount={cart.reduce((acc, item) => acc + item.qty, 0)}
         isAdmin={user?.isAdmin}
         onOpenChange={setSidebarOpen}
       />
 
       <motion.div
-        onClick={handleLogoClick}
-        style={{
-          scale: isHomePage ? logoScale : logoScaleValue,
-          y: isHomePage ? logoY : logoYTarget,
-          x: isHomePage ? logoX : logoXTarget,
-          position: 'fixed', top: '50%', left: '50%', translateX: '-50%', translateY: '-50%', zIndex: 600, cursor: 'pointer'
-        }}
-      >
-        <Logo className="text-6xl md:text-9xl lg:text-[14rem] drop-shadow-[0_0_80px_rgba(255,165,0,0.5)] hover:text-orange-500 transition-colors" isRTL={isRTL} />
-      </motion.div>
+          onClick={handleLogoClick}
+          style={{
+            scale: isHomePage ? logoScale : logoScaleValue,
+            y: isHomePage ? logoY : logoYTarget,
+            x: isHomePage ? logoX : logoXTarget,
+            position: 'fixed', top: '50%', left: '50%', translateX: '-50%', translateY: '-50%', zIndex: 600, cursor: 'pointer'
+          }}
+        >
+          <Logo className="text-6xl md:text-9xl lg:text-[14rem] drop-shadow-[0_0_80px_rgba(255,165,0,0.5)] hover:text-orange-500 transition-colors" isRTL={isRTL} />
+        </motion.div>
 
+      <main id="main-content">
       <Suspense fallback={<LoadingScreen />}>
         <Routes>
           <Route path="/" element={
             <HomePage
               lang={lang}
               isRTL={isRTL}
-              setCart={setCart}
+              onOpenCheckout={openCheckout}
               onAdminLogin={() => { setAuthMode('login'); setIsAuthOpen(true); }}
-            />
-          } />
-          <Route path="/cart" element={
-            <CartPage
-              lang={lang}
-              cart={cart}
-              setCart={setCart}
-              promoCodes={promoCodes}
             />
           } />
           <Route path="/contact" element={<ContactPage lang={lang} />} />
@@ -267,6 +267,7 @@ function AppContent() {
           } />
         </Routes>
       </Suspense>
+      </main>
 
       <AuthOverlay
         isOpen={isAuthOpen}
@@ -279,6 +280,37 @@ function AppContent() {
           navigate(data.isAdmin ? '/admin' : '/account');
         }}
       />
+
+      {/* Checkout Overlay — opens when user clicks "Order Now" */}
+      {isCheckoutOpen && (
+        <div className="fixed inset-0 z-[100] bg-black overflow-y-auto" style={{ background: 'linear-gradient(180deg, #000000 0%, #0a0a0a 50%, #000000 100%)' }}>
+          <div className="fixed inset-0 pointer-events-none">
+            <div className="absolute top-0 left-1/4 w-96 h-96 bg-orange-500/5 rounded-full blur-[150px]" />
+            <div className="absolute bottom-0 right-1/4 w-96 h-96 bg-orange-600/5 rounded-full blur-[150px]" />
+          </div>
+          <button
+            onClick={closeCheckout}
+            className="fixed top-24 left-6 md:left-12 z-50 flex items-center gap-3 text-white/40 hover:text-orange-500 transition-colors group"
+          >
+            <span className="w-10 h-10 border border-white/10 group-hover:border-orange-500/50 flex items-center justify-center transition-colors">←</span>
+            <span className="text-xs font-black tracking-widest uppercase hidden md:block">
+              {lang === 'en' ? 'BACK' : lang === 'he' ? 'חזור' : 'رجوع'}
+            </span>
+          </button>
+          <div className="relative pt-32 pb-20 min-h-screen">
+            <CartOverlay
+              lang={lang}
+              promoCodes={promoCodes}
+              onCheckout={closeCheckout}
+            />
+          </div>
+          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 text-center">
+            <p className="text-[10px] tracking-[0.5em] text-white/20 uppercase font-black">MAXIOS SECURE CHECKOUT</p>
+          </div>
+        </div>
+      )}
+
+      <WhatsAppButton lang={lang} />
     </div>
   );
 }

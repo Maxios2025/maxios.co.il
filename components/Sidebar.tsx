@@ -9,12 +9,11 @@ interface SidebarProps {
   setActiveView: (v: ViewState) => void;
   lang: Language;
   setLang: (l: Language) => void;
-  cartCount: number;
   isAdmin?: boolean;
   onOpenChange?: (open: boolean) => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, lang, setLang, cartCount, isAdmin, onOpenChange }) => {
+export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, lang, setLang, isAdmin, onOpenChange }) => {
   const [isOpen, setIsOpen] = useState(false);
 
   const toggleOpen = (open: boolean) => {
@@ -24,8 +23,6 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, lan
 
   const menuItems: { id: ViewState; icon: any; label: { en: string; ar: string; he: string }; adminOnly?: boolean }[] = [
     { id: 'home', icon: Home, label: { en: 'Home', ar: 'الرئيسية', he: 'בית' } },
-    // Products removed temporarily - will add back with more products
-    // { id: 'products', icon: ShoppingBag, label: { en: 'Products', ar: 'المنتجات', he: 'מוצרים' } },
     { id: 'support', icon: LifeBuoy, label: { en: 'Support', ar: 'الدعم', he: 'תמיכה' } },
     { id: 'contact', icon: Mail, label: { en: 'Contact', ar: 'اتصل بنا', he: 'צור קשר' } },
     { id: 'admin', icon: ShieldAlert, label: { en: 'Admin Console', ar: 'لوحة المسؤول', he: 'לוח מנהל' }, adminOnly: true },
@@ -33,19 +30,20 @@ export const Sidebar: React.FC<SidebarProps> = ({ activeView, setActiveView, lan
 
   return (
     <>
-      <motion.div
-        style={{ top: window.innerWidth < 768 ? 16 : 32 }}
-        className={`fixed right-4 md:right-8 z-[500] flex gap-2 md:gap-4 transition-all duration-500 ${lang === 'he' || lang === 'ar' ? 'flex-row-reverse' : ''}`}
+      {/* Menu button — use CSS for responsive positioning instead of window.innerWidth */}
+      <div
+        className={`fixed top-4 md:top-8 right-4 md:right-8 z-[500] flex gap-2 md:gap-4 transition-all duration-500 ${lang === 'he' || lang === 'ar' ? 'flex-row-reverse' : ''}`}
       >
-        <button onClick={() => toggleOpen(true)} className="p-2 md:p-4 backdrop-blur-xl border transition-all group bg-white/5 border-white/10 text-white hover:bg-orange-500 hover:text-white">
+        <button onClick={() => toggleOpen(true)} className="p-2 md:p-4 border transition-all group bg-black/70 md:bg-white/5 md:backdrop-blur-xl border-white/10 text-white hover:bg-orange-500 hover:text-white">
           <Menu className="group-hover:scale-110 transition-transform md:w-6 md:h-6" size={20} />
         </button>
-      </motion.div>
+      </div>
 
       <AnimatePresence>
         {isOpen && (
           <>
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => toggleOpen(false)} className="fixed inset-0 bg-black/80 backdrop-blur-sm z-[600]" />
+            {/* Overlay — opaque on mobile instead of expensive backdrop-blur */}
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} onClick={() => toggleOpen(false)} className="fixed inset-0 bg-black/95 md:bg-black/80 md:backdrop-blur-sm z-[600]" />
             <motion.div
               initial={{ x: 400 }}
               animate={{ x: 0 }}

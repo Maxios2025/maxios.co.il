@@ -16,7 +16,29 @@
       "Bash(git commit:*)",
       "Bash(git config:*)",
       "Bash(npm run build:*)",
-      "Bash(dir:*)"
+      "Bash(dir:*)",
+      "Bash(del \"c:\\\\Users\\\\lapto\\\\OneDrive\\\\Desktop\\\\maxios---cinematic-experience \\(2\\)\\\\verification-codes-table.sql\")",
+      "Bash(del \"c:\\\\Users\\\\lapto\\\\OneDrive\\\\Desktop\\\\maxios---cinematic-experience \\(2\\)\\\\SUPABASE_SETUP.md\")",
+      "Bash(del \"c:\\\\Users\\\\lapto\\\\OneDrive\\\\Desktop\\\\maxios---cinematic-experience \\(2\\)\\\\QUICK_SETUP.md\")",
+      "Bash(del \"c:\\\\Users\\\\lapto\\\\OneDrive\\\\Desktop\\\\maxios---cinematic-experience \\(2\\)\\\\OTP_SETUP_GUIDE.md\")",
+      "Bash(wc:*)",
+      "Bash(tree:*)",
+      "Bash(timeout:*)",
+      "Bash(powershell -Command \"Compress-Archive -Path * -DestinationPath ''C:\\\\Users\\\\lapto\\\\OneDrive\\\\Desktop\\\\maxios-cinematic-experience.zip'' -Force\")",
+      "Bash(powershell -Command:*)",
+      "Bash(powershell -ExecutionPolicy Bypass -File:*)",
+      "Bash(head:*)",
+      "Bash(tail:*)",
+      "Bash(cat:*)",
+      "Bash(copy \"c:\\\\Users\\\\lapto\\\\OneDrive\\\\Desktop\\\\maxios---cinematic-experience \\(2\\)\\\\Video Project.mp4\" \"c:\\\\Users\\\\lapto\\\\OneDrive\\\\Desktop\\\\maxios---cinematic-experience \\(2\\)\\\\public\\\\background-video.mp4\")",
+      "Bash(findstr:*)",
+      "Bash(del \"c:\\\\Users\\\\lapto\\\\OneDrive\\\\Desktop\\\\maxios---cinematic-experience \\(2\\)\\\\api\\\\send-contact-confirmation.js\")",
+      "Bash(del \"c:\\\\Users\\\\lapto\\\\OneDrive\\\\Desktop\\\\maxios---cinematic-experience \\(2\\)\\\\components\\\\DiscountHeader.tsx\")",
+      "Bash(git push:*)",
+      "Bash(npx vite build)",
+      "Bash(du:*)",
+      "Bash(npm audit:*)",
+      "Bash(printf:*)"
     ]
   }
 }

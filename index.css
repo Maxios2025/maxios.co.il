@@ -10,6 +10,10 @@
     color: #ffffff;
     font-family: 'Inter', sans-serif;
     overflow-x: hidden;
+    /* Smooth touch scrolling on mobile */
+    -webkit-overflow-scrolling: touch;
+    /* Eliminate 300ms tap delay */
+    touch-action: manipulation;
   }
 
   /* Global Hebrew text override when lang=he */
@@ -109,4 +113,75 @@
 
 .animate-aurora {
   animation: aurora 60s linear infinite;
+}
+
+/* === MOBILE PERFORMANCE OPTIMIZATIONS === */
+@media (max-width: 767px) {
+  /* Reduce heavy text-shadow on mobile GPUs */
+  .hero-glow {
+    text-shadow: 0 0 20px #FF6B3580;
+  }
+
+  /* Disable backdrop-blur on mobile — extremely expensive on mobile GPUs */
+  .backdrop-blur-xl,
+  .backdrop-blur-sm {
+    -webkit-backdrop-filter: none !important;
+    backdrop-filter: none !important;
+  }
+
+  /* Use cheaper opaque backgrounds instead of blur */
+  .bg-black\/80 {
+    background-color: rgba(0, 0, 0, 0.95) !important;
+  }
+
+  /* Reduce box-shadow complexity on mobile */
+  .shadow-xl {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3) !important;
+  }
+
+  /* Content-visibility for below-fold sections — skip rendering until scrolled into view */
+  footer {
+    content-visibility: auto;
+    contain-intrinsic-size: auto 400px;
+  }
+}
+
+/* GPU-accelerated transforms — hint browser to composite on GPU */
+.fixed {
+  transform: translateZ(0);
+}
+
+/* === ACCESSIBILITY === */
+
+/* Reduced motion — respect user preference */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  video {
+    display: none;
+  }
+}
+
+/* Focus visible styles for keyboard navigation */
+*:focus-visible {
+  outline: 2px solid #ea580c;
+  outline-offset: 2px;
+}
+
+/* Improve contrast for low-opacity text */
+.text-white\/40 {
+  color: rgba(255, 255, 255, 0.6) !important;
+}
+.text-white\/30 {
+  color: rgba(255, 255, 255, 0.5) !important;
+}
+.text-white\/50 {
+  color: rgba(255, 255, 255, 0.65) !important;
 }

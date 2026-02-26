@@ -1,6 +1,8 @@
-// Firebase REST API - no admin SDK needed
-const FIREBASE_PROJECT_ID = process.env.VITE_FIREBASE_PROJECT_ID || 'maxios-add9e';
-const FIREBASE_API_KEY = process.env.VITE_FIREBASE_API_KEY || 'AIzaSyDCsrfTsDea9YIEtNyVmn1Nv7hQ4-hl5w';
+// Firebase REST API - credentials from environment variables only (no hardcoded fallbacks)
+const crypto = require('crypto');
+
+const FIREBASE_PROJECT_ID = process.env.FIREBASE_PROJECT_ID || process.env.VITE_FIREBASE_PROJECT_ID || '';
+const FIREBASE_API_KEY = process.env.FIREBASE_API_KEY || process.env.VITE_FIREBASE_API_KEY || '';
 
 // Generate CSV content from orders
 function generateCSV(orders) {
@@ -84,10 +86,14 @@ function parseFirestoreValue(value) {
 }
 
 export default async function handler(req, res) {
-  // Set CORS headers
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // CORS — restrict to known origins
+  const origin = req.headers.origin || '';
+  const allowed = ['https://maxios.co.il', 'https://www.maxios.co.il', 'http://localhost:3000'];
+  if (allowed.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
   res.setHeader('Access-Control-Allow-Methods', 'GET, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type, Authorization');
 
   if (req.method === 'OPTIONS') {
     return res.status(200).end();
@@ -95,6 +101,39 @@ export default async function handler(req, res) {
 
   if (req.method !== 'GET') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  // Authentication: require admin credentials via Basic auth
+  const adminEmail = process.env.ADMIN_EMAIL;
+  const adminPassword = process.env.ADMIN_PASSWORD;
+  const authHeader = req.headers.authorization || '';
+
+  if (!adminEmail || !adminPassword) {
+    return res.status(500).json({ error: 'Admin authentication not configured' });
+  }
+
+  if (!authHeader.startsWith('Basic ')) {
+    return res.status(401).json({ error: 'Authentication required' });
+  }
+
+  try {
+    const decoded = Buffer.from(authHeader.slice(6), 'base64').toString('utf-8');
+    const [email, password] = decoded.split(':');
+
+    const emailMatch = email && email.length === adminEmail.length &&
+      crypto.timingSafeEqual(Buffer.from(email), Buffer.from(adminEmail));
+    const passwordMatch = password && password.length === adminPassword.length &&
+      crypto.timingSafeEqual(Buffer.from(password), Buffer.from(adminPassword));
+
+    if (!emailMatch || !passwordMatch) {
+      return res.status(401).json({ error: 'Invalid credentials' });
+    }
+  } catch {
+    return res.status(401).json({ error: 'Invalid authentication' });
+  }
+
+  if (!FIREBASE_PROJECT_ID || !FIREBASE_API_KEY) {
+    return res.status(500).json({ error: 'Firebase not configured' });
   }
 
   try {
@@ -119,6 +158,6 @@ export default async function handler(req, res) {
     return res.status(200).send(csv);
   } catch (error) {
     console.error('Error exporting orders:', error);
-    return res.status(500).json({ error: 'Failed to export orders', details: error.message });
+    return res.status(500).json({ error: 'Failed to export orders' });
   }
 }

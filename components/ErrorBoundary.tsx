@@ -31,16 +31,16 @@ export class ErrorBoundary extends React.Component<Props, State> {
               <span className="text-orange-500 text-4xl font-black">!</span>
             </div>
             <h1 className="text-3xl md:text-4xl font-black text-white uppercase tracking-tighter">
-              Something went wrong
+              משהו השתבש
             </h1>
             <p className="text-white/50 text-sm max-w-md mx-auto">
-              An unexpected error occurred. Please refresh the page and try again.
+              אירעה שגיאה בלתי צפויה. אנא רעננו את הדף ונסו שוב.
             </p>
             <button
               onClick={() => window.location.reload()}
               className="px-8 py-4 bg-orange-600 text-white font-black uppercase text-sm tracking-wider hover:bg-orange-500 transition-colors"
             >
-              Refresh Page
+              רענן דף
             </button>
           </div>
         </div>

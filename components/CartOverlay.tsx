@@ -1,10 +1,11 @@
 
 import React, { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Trash2, ShoppingBag, ArrowRight, Check, Banknote, Plus, Minus, Truck, CreditCard, Ticket, X } from 'lucide-react';
-import { Language, CartItem, PromoCode } from '../App';
+import { ArrowRight, Check, Banknote, Truck, CreditCard, Ticket, X } from 'lucide-react';
+import { Language, PromoCode } from '../App';
 import emailjs from '@emailjs/browser';
 import { saveOrder } from '../lib/firebase';
+import { trackBeginCheckout, trackPurchase } from '../lib/analytics';
 
 // Escape user input to prevent XSS in email HTML
 function escapeHtml(str: string): string {
@@ -18,14 +19,20 @@ function escapeHtml(str: string): string {
 
 interface CartOverlayProps {
   lang: Language;
-  cart: CartItem[];
-  setCart: (c: CartItem[]) => void;
   promoCodes: PromoCode[];
   onCheckout: () => void;
-  startAtCheckout?: boolean;
 }
 
-export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, promoCodes, onCheckout }) => {
+// Fixed single product — no cart needed
+const PRODUCT = {
+  id: 'pro18',
+  name: 'MAXIOS PRO-18',
+  price: 1899,
+  img: '/hero-poster.jpeg',
+  qty: 1,
+};
+
+export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCheckout }) => {
   // Step management - which step is currently being edited
   const [activeStep, setActiveStep] = useState<number>(1);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -40,8 +47,9 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
   const [customerStreet, setCustomerStreet] = useState("");
   const [customerZip, setCustomerZip] = useState("");
 
-  // Payment method
-  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'card'>('cod');
+  // Payment method — COD only for now
+  const [paymentMethod] = useState<'cod'>('cod');
+  const [orderError, setOrderError] = useState('');
 
   // Promo
   const [promoInput, setPromoInput] = useState("");
@@ -170,10 +178,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
     }
   };
 
-  const MAX_QTY = 5;
-  const removeItem = (id: string) => setCart(cart.filter(i => i.id !== id));
-  const increaseQty = (id: string) => setCart(cart.map(item => item.id === id && item.qty < MAX_QTY ? { ...item, qty: item.qty + 1 } : item));
-  const decreaseQty = (id: string) => setCart(cart.map(item => item.id === id && item.qty > 1 ? { ...item, qty: item.qty - 1 } : item));
+  // Single product — no cart management needed
 
   const applyPromo = () => {
     const code = promoCodes.find(c => c.code === promoInput.toUpperCase());
@@ -199,18 +204,19 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
     setPromoInput("");
   };
 
-  const calculateSubtotal = () => cart.reduce((acc, item) => acc + (item.price * item.qty), 0);
-  const subtotal = calculateSubtotal();
+  const subtotal = PRODUCT.price * PRODUCT.qty;
   const discountAmount = appliedPromo ? (subtotal * appliedPromo.percent / 100) : 0;
   const total = subtotal - discountAmount;
 
-  const isStep1Complete = customerName.trim() !== "" && customerEmail.includes('@') && !customerEmail.includes(' ') && customerPhone.replace(/\D/g, '').length === 10 && phoneVerified;
+  const isEmailValid = customerEmail.trim() === '' || (customerEmail.includes('@') && !customerEmail.includes(' '));
+  const isStep1Complete = customerName.trim() !== "" && customerPhone.replace(/\D/g, '').length === 10 && phoneVerified && isEmailValid;
   const isStep2Complete = customerCity.trim() !== "" && customerStreet.trim() !== "" && customerZip.trim() !== "";
   const canPlaceOrder = isStep1Complete && isStep2Complete;
 
   const handlePlaceOrder = async () => {
     if (!canPlaceOrder) return;
     setIsProcessing(true);
+    trackBeginCheckout(total);
 
     // Generate order number at time of order placement
     const currentOrderNumber = `MX-${Date.now().toString(36).toUpperCase()}`;
@@ -227,12 +233,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
           street: customerStreet,
           zip: customerZip
         },
-        items: cart.map(item => ({
-          id: item.id,
-          name: item.name,
-          qty: item.qty,
-          price: item.price
-        })),
+        items: [{ id: PRODUCT.id, name: PRODUCT.name, qty: PRODUCT.qty, price: PRODUCT.price }],
         subtotal: subtotal.toFixed(2),
         discount: appliedPromo ? discountAmount.toFixed(2) : '0',
         promoCode: appliedPromo?.code || null,
@@ -250,7 +251,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
       });
 
       // Send Telegram notification to orders group
-      const itemsList = cart.map(item => `• ${item.name} x${item.qty} - ₪${(item.price * item.qty).toFixed(0)}`).join('\n');
+      const itemsList = `• ${PRODUCT.name} x${PRODUCT.qty} - ₪${PRODUCT.price}`;
       const telegramPayload = {
         type: 'order',
         data: {
@@ -273,12 +274,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
       }).then(res => res.json()).catch(err => console.error('Telegram error:', err));
 
       // Send order confirmation email to customer
-      const orderItemsHtml = cart.map(item => {
-        const itemTotal = (item.price * item.qty).toFixed(0);
-        const imgSrc = item.img && item.img.startsWith('http') ? item.img : `https://maxios.co.il${item.img}`;
-        const safeName = escapeHtml(item.name);
-        return `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;border-bottom:1px solid #1e1e1e;"><tr><td width="70" valign="top" style="padding:12px 0 16px;"><img src="${escapeHtml(imgSrc)}" alt="${safeName}" width="60" height="60" style="display:block;width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid #2a2a2a;" /></td><td valign="top" style="padding:12px 16px 16px;"><p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">${safeName}</p><p style="margin:0;font-size:12px;color:#888888;font-family:Arial,Helvetica,sans-serif;">Qty: ${item.qty}</p></td><td valign="top" align="left" style="padding:12px 0 16px;"><p style="margin:0;font-size:16px;font-weight:900;color:#ea580c;font-family:Arial,Helvetica,sans-serif;">&#8362;${itemTotal}</p></td></tr></table>`;
-      }).join('');
+      const orderItemsHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;border-bottom:1px solid #1e1e1e;"><tr><td width="70" valign="top" style="padding:12px 0 16px;"><img src="https://maxios.co.il${PRODUCT.img}" alt="${escapeHtml(PRODUCT.name)}" width="60" height="60" style="display:block;width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid #2a2a2a;" /></td><td valign="top" style="padding:12px 16px 16px;"><p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">${escapeHtml(PRODUCT.name)}</p><p style="margin:0;font-size:12px;color:#888888;font-family:Arial,Helvetica,sans-serif;">כמות: ${PRODUCT.qty}</p></td><td valign="top" align="left" style="padding:12px 0 16px;"><p style="margin:0;font-size:16px;font-weight:900;color:#ea580c;font-family:Arial,Helvetica,sans-serif;">&#8362;${PRODUCT.price}</p></td></tr></table>`;
 
       const discountRow = appliedPromo ? `<tr><td style="padding:14px 0;font-size:14px;color:#22c55e;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">הנחה (${appliedPromo.code} - ${appliedPromo.percent}%)</td><td align="left" style="padding:14px 0;font-size:14px;color:#22c55e;font-weight:bold;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">-&#8362;${discountAmount.toFixed(0)}</td></tr>` : '';
       const paymentLabel = paymentMethod === 'cod' ? 'תשלום במסירה' : 'כרטיס אשראי';
@@ -289,71 +285,72 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
 
 <tr><td align="center" style="padding:48px 40px 16px;"><a href="https://maxios.co.il" target="_blank" style="text-decoration:none;"><img src="https://maxios.co.il/logo.png" alt="Maxios" width="180" style="display:block;width:180px;height:auto;border:0;" /></a></td></tr>
 
-<tr><td align="center" style="padding:8px 40px 8px;"><h1 style="margin:0;font-size:36px;font-weight:900;color:#ffffff;font-family:Georgia,'Times New Roman',serif;line-height:1.2;">Thank You for Order</h1></td></tr>
+<tr><td align="center" style="padding:8px 40px 8px;"><h1 style="margin:0;font-size:36px;font-weight:900;color:#ffffff;font-family:Georgia,'Times New Roman',serif;line-height:1.2;">תודה על ההזמנה!</h1></td></tr>
 
 <tr><td align="center" style="padding:8px 50px 24px;"><p style="margin:0;font-size:15px;color:#888888;line-height:1.7;font-family:Arial,Helvetica,sans-serif;">ההזמנה שלך התקבלה בהצלחה. אנו מכינים את החבילה שלך ונשלח עדכון משלוח בקרוב.</p></td></tr>
 
-<tr><td align="center" style="padding:0 40px 16px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="background-color:#ea580c;border-radius:8px;"><a href="https://maxios.co.il" target="_blank" style="display:inline-block;padding:16px 48px;color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;letter-spacing:1.5px;font-family:Arial,Helvetica,sans-serif;border-radius:8px;">Track Your Order</a></td></tr></table></td></tr>
+<tr><td align="center" style="padding:0 40px 16px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="background-color:#ea580c;border-radius:8px;"><a href="https://maxios.co.il" target="_blank" style="display:inline-block;padding:16px 48px;color:#ffffff;font-size:15px;font-weight:bold;text-decoration:none;letter-spacing:1.5px;font-family:Arial,Helvetica,sans-serif;border-radius:8px;">עקוב אחרי ההזמנה</a></td></tr></table></td></tr>
 
-<tr><td align="center" style="padding:4px 40px 40px;"><p style="margin:0;font-size:12px;color:#555555;font-family:Arial,Helvetica,sans-serif;">Please allow 24 hours to track your order.</p></td></tr>
+<tr><td align="center" style="padding:4px 40px 40px;"><p style="margin:0;font-size:12px;color:#555555;font-family:Arial,Helvetica,sans-serif;">אנא המתינו עד 24 שעות למעקב אחר ההזמנה.</p></td></tr>
 
-<tr><td style="padding:0 30px 32px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1e1e1e;border-radius:12px;overflow:hidden;"><tr><td width="50%" valign="top" style="padding:28px 24px;border-left:1px solid #2a2a2a;"><p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#888888;letter-spacing:2px;text-transform:uppercase;font-family:Arial,Helvetica,sans-serif;">Summary</p><p style="margin:0 0 6px;font-size:13px;color:#ea580c;font-weight:bold;font-family:Arial,Helvetica,sans-serif;">Ready to Ship</p><p style="margin:0 0 4px;font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif;">${currentOrderNumber}</p><p style="margin:0;font-size:18px;color:#ffffff;font-weight:900;font-family:Arial,Helvetica,sans-serif;">&#8362;${total.toFixed(0)}</p></td><td width="50%" valign="top" style="padding:28px 24px;"><p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#888888;letter-spacing:2px;text-transform:uppercase;font-family:Arial,Helvetica,sans-serif;">Shipping Address</p><p style="margin:0 0 4px;font-size:14px;color:#ffffff;font-weight:bold;font-family:Arial,Helvetica,sans-serif;">${safeCustomerName}</p><p style="margin:0;font-size:13px;color:#888888;line-height:1.6;font-family:Arial,Helvetica,sans-serif;">${shippingAddress}</p></td></tr></table></td></tr>
+<tr><td style="padding:0 30px 32px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1e1e1e;border-radius:12px;overflow:hidden;"><tr><td width="50%" valign="top" style="padding:28px 24px;border-left:1px solid #2a2a2a;"><p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#888888;letter-spacing:2px;text-transform:uppercase;font-family:Arial,Helvetica,sans-serif;">סיכום</p><p style="margin:0 0 6px;font-size:13px;color:#ea580c;font-weight:bold;font-family:Arial,Helvetica,sans-serif;">מוכן למשלוח</p><p style="margin:0 0 4px;font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif;">${currentOrderNumber}</p><p style="margin:0;font-size:18px;color:#ffffff;font-weight:900;font-family:Arial,Helvetica,sans-serif;">&#8362;${total.toFixed(0)}</p></td><td width="50%" valign="top" style="padding:28px 24px;"><p style="margin:0 0 4px;font-size:11px;font-weight:bold;color:#888888;letter-spacing:2px;text-transform:uppercase;font-family:Arial,Helvetica,sans-serif;">כתובת למשלוח</p><p style="margin:0 0 4px;font-size:14px;color:#ffffff;font-weight:bold;font-family:Arial,Helvetica,sans-serif;">${safeCustomerName}</p><p style="margin:0;font-size:13px;color:#888888;line-height:1.6;font-family:Arial,Helvetica,sans-serif;">${shippingAddress}</p></td></tr></table></td></tr>
 
 <tr><td style="padding:0 60px 0;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #222222;font-size:0;line-height:0;">&nbsp;</td></tr></table></td></tr>
 
-<tr><td align="center" style="padding:40px 30px 6px;"><h2 style="margin:0;font-size:28px;font-weight:900;color:#ffffff;font-family:Georgia,'Times New Roman',serif;">Your item in this order</h2></td></tr>
-<tr><td align="center" style="padding:4px 30px 28px;"><p style="margin:0;font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif;">Order number: #${currentOrderNumber}</p></td></tr>
+<tr><td align="center" style="padding:40px 30px 6px;"><h2 style="margin:0;font-size:28px;font-weight:900;color:#ffffff;font-family:Georgia,'Times New Roman',serif;">הפריטים בהזמנה שלך</h2></td></tr>
+<tr><td align="center" style="padding:4px 30px 28px;"><p style="margin:0;font-size:13px;color:#666666;font-family:Arial,Helvetica,sans-serif;">מספר הזמנה: #${currentOrderNumber}</p></td></tr>
 
 <tr><td style="padding:0 30px 16px;">${orderItemsHtml}</td></tr>
 
-<tr><td style="padding:0 30px 8px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:14px 0;font-size:14px;color:#888888;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">Subtotal</td><td align="left" style="padding:14px 0;font-size:14px;color:#ffffff;font-weight:bold;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">&#8362;${subtotal.toFixed(0)}</td></tr>${discountRow}<tr><td style="padding:14px 0;font-size:14px;color:#888888;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">Standard Delivery</td><td align="left" style="padding:14px 0;font-size:14px;color:#22c55e;font-weight:bold;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">FREE</td></tr><tr><td style="padding:20px 0 8px;font-size:16px;font-weight:900;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">Total:</td><td align="left" style="padding:20px 0 8px;font-size:24px;font-weight:900;color:#ea580c;font-family:Arial,Helvetica,sans-serif;">&#8362;${total.toFixed(0)}</td></tr></table></td></tr>
+<tr><td style="padding:0 30px 8px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:14px 0;font-size:14px;color:#888888;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">סכום ביניים</td><td align="left" style="padding:14px 0;font-size:14px;color:#ffffff;font-weight:bold;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">&#8362;${subtotal.toFixed(0)}</td></tr>${discountRow}<tr><td style="padding:14px 0;font-size:14px;color:#888888;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">משלוח</td><td align="left" style="padding:14px 0;font-size:14px;color:#22c55e;font-weight:bold;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">חינם</td></tr><tr><td style="padding:20px 0 8px;font-size:16px;font-weight:900;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">סה״כ:</td><td align="left" style="padding:20px 0 8px;font-size:24px;font-weight:900;color:#ea580c;font-family:Arial,Helvetica,sans-serif;">&#8362;${total.toFixed(0)}</td></tr></table></td></tr>
 
-<tr><td style="padding:8px 30px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1e1e1e;border-radius:8px;"><tr><td style="padding:14px 20px;font-size:13px;color:#888888;font-family:Arial,Helvetica,sans-serif;">Payment: <span style="color:#ffffff;font-weight:bold;">${paymentLabel}</span></td></tr></table></td></tr>
+<tr><td style="padding:8px 30px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1e1e1e;border-radius:8px;"><tr><td style="padding:14px 20px;font-size:13px;color:#888888;font-family:Arial,Helvetica,sans-serif;">תשלום: <span style="color:#ffffff;font-weight:bold;">${paymentLabel}</span></td></tr></table></td></tr>
 
 <tr><td style="padding:0 60px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #222222;font-size:0;line-height:0;">&nbsp;</td></tr></table></td></tr>
 
-<tr><td align="center" style="padding:40px 30px 8px;"><h2 style="margin:0;font-size:26px;font-weight:900;color:#ffffff;font-family:Georgia,'Times New Roman',serif;">Any problems with your order?</h2></td></tr>
+<tr><td align="center" style="padding:40px 30px 8px;"><h2 style="margin:0;font-size:26px;font-weight:900;color:#ffffff;font-family:Georgia,'Times New Roman',serif;">יש בעיה עם ההזמנה?</h2></td></tr>
 
-<tr><td style="padding:20px 30px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td width="48%" valign="top" style="padding-left:6px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1e1e1e;border-radius:12px;"><tr><td align="center" style="padding:24px 16px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="width:44px;height:44px;background-color:#2a2a2a;border-radius:50%;text-align:center;vertical-align:middle;"><span style="font-size:20px;line-height:44px;">&#9993;</span></td></tr></table><p style="margin:12px 0 2px;font-size:14px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">Email Us</p><p style="margin:0;font-size:12px;color:#ea580c;font-family:Arial,Helvetica,sans-serif;">support@maxios.co.il</p></td></tr></table></td><td width="4%">&nbsp;</td><td width="48%" valign="top" style="padding-right:6px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1e1e1e;border-radius:12px;"><tr><td align="center" style="padding:24px 16px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="width:44px;height:44px;background-color:#2a2a2a;border-radius:50%;text-align:center;vertical-align:middle;"><span style="font-size:20px;line-height:44px;">&#9742;</span></td></tr></table><p style="margin:12px 0 2px;font-size:14px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">Call Us</p><p style="margin:0;font-size:12px;color:#ea580c;font-family:Arial,Helvetica,sans-serif;">050-1234567</p></td></tr></table></td></tr></table></td></tr>
+<tr><td style="padding:20px 30px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td width="48%" valign="top" style="padding-left:6px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1e1e1e;border-radius:12px;"><tr><td align="center" style="padding:24px 16px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="width:44px;height:44px;background-color:#2a2a2a;border-radius:50%;text-align:center;vertical-align:middle;"><span style="font-size:20px;line-height:44px;">&#9993;</span></td></tr></table><p style="margin:12px 0 2px;font-size:14px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">שלחו מייל</p><p style="margin:0;font-size:12px;color:#ea580c;font-family:Arial,Helvetica,sans-serif;">support@maxios.co.il</p></td></tr></table></td><td width="4%">&nbsp;</td><td width="48%" valign="top" style="padding-right:6px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1e1e1e;border-radius:12px;"><tr><td align="center" style="padding:24px 16px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td align="center" style="width:44px;height:44px;background-color:#2a2a2a;border-radius:50%;text-align:center;vertical-align:middle;"><span style="font-size:20px;line-height:44px;">&#9742;</span></td></tr></table><p style="margin:12px 0 2px;font-size:14px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">התקשרו אלינו</p><p style="margin:0;font-size:12px;color:#ea580c;font-family:Arial,Helvetica,sans-serif;">052-9932765</p></td></tr></table></td></tr></table></td></tr>
 
-<tr><td style="padding:0 30px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:linear-gradient(135deg,#ea580c 0%,#c2410c 100%);border-radius:16px;overflow:hidden;"><tr><td align="center" style="padding:36px 30px;"><h3 style="margin:0 0 8px;font-size:24px;font-weight:900;color:#ffffff;font-family:Georgia,'Times New Roman',serif;">Share with friends</h3><p style="margin:0 0 20px;font-size:14px;color:rgba(255,255,255,0.85);line-height:1.6;font-family:Arial,Helvetica,sans-serif;">Love your order? Tell your friends about Maxios<br>and help them discover cinematic quality gear.</p><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:#ffffff;border-radius:8px;"><a href="https://maxios.co.il" target="_blank" style="display:inline-block;padding:14px 40px;color:#ea580c;font-size:14px;font-weight:bold;text-decoration:none;font-family:Arial,Helvetica,sans-serif;">Visit Maxios</a></td></tr></table></td></tr></table></td></tr>
+<tr><td style="padding:0 30px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background:linear-gradient(135deg,#ea580c 0%,#c2410c 100%);border-radius:16px;overflow:hidden;"><tr><td align="center" style="padding:36px 30px;"><h3 style="margin:0 0 8px;font-size:24px;font-weight:900;color:#ffffff;font-family:Georgia,'Times New Roman',serif;">שתפו עם חברים</h3><p style="margin:0 0 20px;font-size:14px;color:rgba(255,255,255,0.85);line-height:1.6;font-family:Arial,Helvetica,sans-serif;">אהבתם את ההזמנה? ספרו לחברים על Maxios<br>ועזרו להם לגלות מוצרי ניקיון איכותיים.</p><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="background-color:#ffffff;border-radius:8px;"><a href="https://maxios.co.il" target="_blank" style="display:inline-block;padding:14px 40px;color:#ea580c;font-size:14px;font-weight:bold;text-decoration:none;font-family:Arial,Helvetica,sans-serif;">בקרו ב-Maxios</a></td></tr></table></td></tr></table></td></tr>
 
-<tr><td style="padding:0 30px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1e1e1e;border-radius:12px;"><tr><td style="padding:24px 28px;" valign="middle"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td valign="middle" style="padding-left:16px;"><p style="margin:0 0 2px;font-size:16px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">Want to talk business with us?</p><p style="margin:0;font-size:13px;color:#888888;line-height:1.5;font-family:Arial,Helvetica,sans-serif;">Feel free to reach out at <span style="color:#ea580c;font-weight:bold;">partner@maxios.co.il</span><br>We open opportunities for all forms of business collaboration</p></td></tr></table></td></tr></table></td></tr>
+<tr><td style="padding:0 30px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1e1e1e;border-radius:12px;"><tr><td style="padding:24px 28px;" valign="middle"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td valign="middle" style="padding-left:16px;"><p style="margin:0 0 2px;font-size:16px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">רוצים לדבר עסקים?</p><p style="margin:0;font-size:13px;color:#888888;line-height:1.5;font-family:Arial,Helvetica,sans-serif;">פנו אלינו בכתובת <span style="color:#ea580c;font-weight:bold;">partner@maxios.co.il</span><br>אנחנו פתוחים לכל סוג של שיתוף פעולה עסקי</p></td></tr></table></td></tr></table></td></tr>
 
 </table>
 
-<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#0f0f0f;border-top:1px solid #1e1e1e;"><tr><td align="center" style="padding:40px 30px 12px;"><a href="https://maxios.co.il" target="_blank" style="text-decoration:none;"><img src="https://maxios.co.il/logo.png" alt="Maxios" width="140" style="display:block;width:140px;height:auto;border:0;" /></a></td></tr><tr><td align="center" style="padding:0 30px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:0 8px;"><a href="#" style="display:inline-block;width:36px;height:36px;background-color:#1e1e1e;border-radius:50%;text-align:center;line-height:36px;text-decoration:none;"><span style="color:#888888;font-size:16px;">&#9679;</span></a></td><td style="padding:0 8px;"><a href="#" style="display:inline-block;width:36px;height:36px;background-color:#1e1e1e;border-radius:50%;text-align:center;line-height:36px;text-decoration:none;"><span style="color:#888888;font-size:16px;">&#9679;</span></a></td><td style="padding:0 8px;"><a href="#" style="display:inline-block;width:36px;height:36px;background-color:#1e1e1e;border-radius:50%;text-align:center;line-height:36px;text-decoration:none;"><span style="color:#888888;font-size:16px;">&#9679;</span></a></td><td style="padding:0 8px;"><a href="#" style="display:inline-block;width:36px;height:36px;background-color:#1e1e1e;border-radius:50%;text-align:center;line-height:36px;text-decoration:none;"><span style="color:#888888;font-size:16px;">&#9679;</span></a></td></tr></table></td></tr><tr><td align="center" style="padding:0 30px 12px;"><p style="margin:0;font-size:12px;color:#444444;line-height:1.6;font-family:Arial,Helvetica,sans-serif;">Maxios HQ, Israel</p></td></tr><tr><td align="center" style="padding:0 30px 40px;"><p style="margin:0 0 8px;font-size:11px;color:#333333;font-family:Arial,Helvetica,sans-serif;">&copy; 2026 Maxios. All rights reserved.</p><a href="#" style="font-size:12px;color:#ea580c;text-decoration:underline;font-family:Arial,Helvetica,sans-serif;">Unsubscribe</a></td></tr></table>
+<table role="presentation" width="600" cellpadding="0" cellspacing="0" border="0" style="max-width:600px;width:100%;background-color:#0f0f0f;border-top:1px solid #1e1e1e;"><tr><td align="center" style="padding:40px 30px 12px;"><a href="https://maxios.co.il" target="_blank" style="text-decoration:none;"><img src="https://maxios.co.il/logo.png" alt="Maxios" width="140" style="display:block;width:140px;height:auto;border:0;" /></a></td></tr><tr><td align="center" style="padding:0 30px 20px;"><table role="presentation" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:0 8px;"><a href="#" style="display:inline-block;width:36px;height:36px;background-color:#1e1e1e;border-radius:50%;text-align:center;line-height:36px;text-decoration:none;"><span style="color:#888888;font-size:16px;">&#9679;</span></a></td><td style="padding:0 8px;"><a href="#" style="display:inline-block;width:36px;height:36px;background-color:#1e1e1e;border-radius:50%;text-align:center;line-height:36px;text-decoration:none;"><span style="color:#888888;font-size:16px;">&#9679;</span></a></td><td style="padding:0 8px;"><a href="#" style="display:inline-block;width:36px;height:36px;background-color:#1e1e1e;border-radius:50%;text-align:center;line-height:36px;text-decoration:none;"><span style="color:#888888;font-size:16px;">&#9679;</span></a></td><td style="padding:0 8px;"><a href="#" style="display:inline-block;width:36px;height:36px;background-color:#1e1e1e;border-radius:50%;text-align:center;line-height:36px;text-decoration:none;"><span style="color:#888888;font-size:16px;">&#9679;</span></a></td></tr></table></td></tr><tr><td align="center" style="padding:0 30px 12px;"><p style="margin:0;font-size:12px;color:#444444;line-height:1.6;font-family:Arial,Helvetica,sans-serif;">Maxios, ישראל</p></td></tr><tr><td align="center" style="padding:0 30px 40px;"><p style="margin:0 0 8px;font-size:11px;color:#333333;font-family:Arial,Helvetica,sans-serif;">&copy; 2026 Maxios. כל הזכויות שמורות.</p><a href="#" style="font-size:12px;color:#ea580c;text-decoration:underline;font-family:Arial,Helvetica,sans-serif;">הסרה מרשימת תפוצה</a></td></tr></table>
 
 </td></tr></table></body></html>`;
 
-      emailjs.send(
-        'service_9sh4kyv',
-        'template_jsfubmy',
-        {
-          to_email: customerEmail,
-          order_number: currentOrderNumber,
-          customer_name: customerName,
-          customer_email: customerEmail,
-          customer_phone: customerPhone,
-          shipping_address: `${customerStreet}, ${customerCity} ${customerZip}`,
-          order_items: cart.map(item => `${item.name} x${item.qty} - ₪${(item.price * item.qty).toFixed(0)}`).join('\n'),
-          order_total: total.toFixed(0),
-          payment_method: paymentMethod === 'cod' ? 'Cash on Delivery' : 'Credit Card',
-          message_html: fullEmailHtml
-        },
-        '_jL_0gQsRkGzlKdZw'
-      ).catch(err => console.error('EmailJS error:', err));
+      // Only send confirmation email if the customer provided an email
+      if (customerEmail.trim()) {
+        emailjs.send(
+          import.meta.env.VITE_EMAILJS_SERVICE_ID || '',
+          import.meta.env.VITE_EMAILJS_TEMPLATE_ID || '',
+          {
+            to_email: customerEmail,
+            order_number: currentOrderNumber,
+            customer_name: customerName,
+            customer_email: customerEmail,
+            customer_phone: customerPhone,
+            shipping_address: `${customerStreet}, ${customerCity} ${customerZip}`,
+            order_items: `${PRODUCT.name} x${PRODUCT.qty} - ₪${PRODUCT.price}`,
+            order_total: total.toFixed(0),
+            payment_method: paymentMethod === 'cod' ? 'תשלום במסירה' : 'כרטיס אשראי',
+            message_html: fullEmailHtml
+          },
+          import.meta.env.VITE_EMAILJS_PUBLIC_KEY || ''
+        ).catch(err => console.error('EmailJS error:', err));
+      }
 
+      trackPurchase(currentOrderNumber, total, [{ name: PRODUCT.name, price: PRODUCT.price, qty: PRODUCT.qty }]);
       setIsProcessing(false);
       setPlacedOrderNumber(currentOrderNumber);
       setOrderComplete(true);
-      setTimeout(() => {
-        onCheckout();
-        setCart([]);
-      }, 4000);
     } catch (err) {
       console.error('Order error:', err);
       setIsProcessing(false);
+      setOrderError(lang === 'en' ? 'An error occurred while placing your order. Please try again.' : lang === 'he' ? 'אירעה שגיאה בביצוע ההזמנה. אנא נסו שוב.' : 'حدث خطأ أثناء تقديم الطلب. يرجى المحاولة مرة أخرى.');
     }
   };
 
@@ -418,7 +415,9 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
       otpInvalidPhone: "Invalid phone number format.",
       otpCaptchaFailed: "Verification failed. Please try again.",
       otpSendFailed: "Failed to send code. Please try again.",
-      otpVerifyFailed: "Verification failed. Please try again."
+      otpVerifyFailed: "Verification failed. Please try again.",
+      emailOptional: "(Optional)",
+      emailHelper: "If you provide an email, we'll send you an order confirmation"
     },
     he: {
       title: "סיום ההזמנה",
@@ -480,7 +479,9 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
       otpInvalidPhone: "מספר טלפון לא תקין.",
       otpCaptchaFailed: "האימות נכשל. נסה שוב.",
       otpSendFailed: "שליחת הקוד נכשלה. נסה שוב.",
-      otpVerifyFailed: "האימות נכשל. נסה שוב."
+      otpVerifyFailed: "האימות נכשל. נסה שוב.",
+      emailOptional: "(לא חובה)",
+      emailHelper: "אם תמלא/י מייל, נשלח לך אישור הזמנה"
     },
     ar: {
       title: "إتمام الطلب",
@@ -542,7 +543,9 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
       otpInvalidPhone: "صيغة رقم الهاتف غير صحيحة.",
       otpCaptchaFailed: "فشل التحقق. حاول مرة أخرى.",
       otpSendFailed: "فشل إرسال الرمز. حاول مرة أخرى.",
-      otpVerifyFailed: "فشل التحقق. حاول مرة أخرى."
+      otpVerifyFailed: "فشل التحقق. حاول مرة أخرى.",
+      emailOptional: "(اختياري)",
+      emailHelper: "إذا أدخلت بريدك الإلكتروني، سنرسل لك تأكيد الطلب"
     }
   }[lang];
 
@@ -558,15 +561,6 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
           <p className="text-white/40 text-sm mb-2">{t.orderNumber}</p>
           <p className="text-orange-500 text-2xl font-mono font-bold">{placedOrderNumber}</p>
         </div>
-      </div>
-    );
-  }
-
-  if (cart.length === 0) {
-    return (
-      <div className="max-w-3xl mx-auto px-6 py-20 text-center">
-        <ShoppingBag size={64} className="mx-auto mb-6 text-white/20" />
-        <h2 className="text-2xl font-bold text-white/40">{lang === 'en' ? 'Your cart is empty' : lang === 'he' ? 'הסל ריק' : 'السلة فارغة'}</h2>
       </div>
     );
   }
@@ -612,63 +606,51 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
                 >
                   <div className="px-4 md:px-6 pb-6 space-y-4">
                     {isStep1Complete && (
-                      <p className="text-white/60 text-sm">{customerName} | {customerEmail} | {customerPhone}</p>
+                      <p className="text-white/60 text-sm">{customerName} | {customerPhone}{customerEmail.trim() ? ` | ${customerEmail}` : ''}</p>
                     )}
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-white/50 text-xs uppercase tracking-wider block mb-2">{t.name}</label>
+                    {/* Phone — required, first/most prominent */}
+                    <div>
+                      <label className="text-white/50 text-xs uppercase tracking-wider block mb-2">{t.phone}</label>
+                      <div className="flex gap-2">
                         <input
-                          type="text"
-                          value={customerName}
-                          onChange={(e) => handleNameChange(e.target.value)}
-                          className={`w-full bg-white/5 border ${fieldErrors.name ? 'border-red-500' : 'border-white/10'} p-3 text-white outline-none focus:border-orange-500 transition-colors`}
-                          placeholder={t.name}
+                          type="tel"
+                          inputMode="tel"
+                          value={customerPhone}
+                          onChange={(e) => handlePhoneChange(e.target.value)}
+                          className={`flex-1 bg-white/5 border ${
+                            fieldErrors.phone ? 'border-red-500' :
+                            phoneVerified ? 'border-green-500' : 'border-white/10'
+                          } p-3 text-white outline-none focus:border-orange-500 transition-colors`}
+                          placeholder="05X-XXXXXXX"
+                          dir="ltr"
+                          disabled={phoneVerified}
                         />
-                        {fieldErrors.name && <p className="text-red-500 text-[10px] mt-1">{fieldErrors.name}</p>}
+                        {!phoneVerified && !otpSent && (
+                          <button
+                            type="button"
+                            onClick={handleSendOTP}
+                            disabled={customerPhone.length !== 10 || otpLoading}
+                            className={`px-3 py-3 font-bold text-xs uppercase tracking-wider whitespace-nowrap ${
+                              customerPhone.length === 10 && !otpLoading
+                                ? 'bg-orange-500 text-white hover:bg-orange-600'
+                                : 'bg-white/10 text-white/30 cursor-not-allowed'
+                            } transition-colors`}
+                          >
+                            {otpLoading ? t.sending : t.sendCode}
+                          </button>
+                        )}
+                        {phoneVerified && (
+                          <div className="flex items-center gap-2 px-3 bg-green-500/10 border border-green-500/30">
+                            <Check size={14} className="text-green-400" />
+                            <span className="text-green-400 text-xs font-bold">{t.verified}</span>
+                          </div>
+                        )}
                       </div>
-                      <div>
-                        <label className="text-white/50 text-xs uppercase tracking-wider block mb-2">{t.phone}</label>
-                        <div className="flex gap-2">
-                          <input
-                            type="tel"
-                            value={customerPhone}
-                            onChange={(e) => handlePhoneChange(e.target.value)}
-                            className={`flex-1 bg-white/5 border ${
-                              fieldErrors.phone ? 'border-red-500' :
-                              phoneVerified ? 'border-green-500' : 'border-white/10'
-                            } p-3 text-white outline-none focus:border-orange-500 transition-colors`}
-                            placeholder="0501234567"
-                            dir="ltr"
-                            disabled={phoneVerified}
-                          />
-                          {!phoneVerified && !otpSent && (
-                            <button
-                              type="button"
-                              onClick={handleSendOTP}
-                              disabled={customerPhone.length !== 10 || otpLoading}
-                              className={`px-3 py-3 font-bold text-xs uppercase tracking-wider whitespace-nowrap ${
-                                customerPhone.length === 10 && !otpLoading
-                                  ? 'bg-orange-500 text-white hover:bg-orange-600'
-                                  : 'bg-white/10 text-white/30 cursor-not-allowed'
-                              } transition-colors`}
-                            >
-                              {otpLoading ? t.sending : t.sendCode}
-                            </button>
-                          )}
-                          {phoneVerified && (
-                            <div className="flex items-center gap-2 px-3 bg-green-500/10 border border-green-500/30">
-                              <Check size={14} className="text-green-400" />
-                              <span className="text-green-400 text-xs font-bold">{t.verified}</span>
-                            </div>
-                          )}
-                        </div>
-                        {fieldErrors.phone && <p className="text-red-500 text-[10px] mt-1">{fieldErrors.phone}</p>}
-                        {otpError && !otpSent && <p className="text-red-400 text-sm mt-1">{otpError}</p>}
-
-                      </div>
+                      {fieldErrors.phone && <p className="text-red-500 text-[10px] mt-1">{fieldErrors.phone}</p>}
+                      {otpError && !otpSent && <p className="text-red-400 text-sm mt-1">{otpError}</p>}
                     </div>
 
-                    {/* OTP Input Section - full width below the grid */}
+                    {/* OTP Input Section - full width below phone */}
                     {otpSent && !phoneVerified && (
                       <motion.div
                         initial={{ height: 0, opacity: 0 }}
@@ -726,10 +708,28 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
                         </div>
                       </motion.div>
                     )}
+
+                    {/* Name — required */}
                     <div>
-                      <label className="text-white/50 text-xs uppercase tracking-wider block mb-2">{t.email}</label>
+                      <label className="text-white/50 text-xs uppercase tracking-wider block mb-2">{t.name}</label>
+                      <input
+                        type="text"
+                        value={customerName}
+                        onChange={(e) => handleNameChange(e.target.value)}
+                        className={`w-full bg-white/5 border ${fieldErrors.name ? 'border-red-500' : 'border-white/10'} p-3 text-white outline-none focus:border-orange-500 transition-colors`}
+                        placeholder={t.name}
+                      />
+                      {fieldErrors.name && <p className="text-red-500 text-[10px] mt-1">{fieldErrors.name}</p>}
+                    </div>
+
+                    {/* Email — optional */}
+                    <div>
+                      <label className="text-white/50 text-xs uppercase tracking-wider block mb-2">
+                        {t.email} <span className="text-white/30 normal-case">{t.emailOptional}</span>
+                      </label>
                       <input
                         type="email"
+                        inputMode="email"
                         value={customerEmail}
                         onChange={(e) => handleEmailChange(e.target.value)}
                         className={`w-full bg-white/5 border ${fieldErrors.email ? 'border-red-500' : 'border-white/10'} p-3 text-white outline-none focus:border-orange-500 transition-colors`}
@@ -737,6 +737,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
                         dir="ltr"
                       />
                       {fieldErrors.email && <p className="text-red-500 text-[10px] mt-1">{fieldErrors.email}</p>}
+                      <p className="text-white/30 text-xs mt-1.5">{t.emailHelper}</p>
                     </div>
                     <button
                       onClick={() => isStep1Complete && setActiveStep(2)}
@@ -897,35 +898,24 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
                   className="overflow-hidden"
                 >
                   <div className="px-4 md:px-6 pb-6 space-y-4">
-                    <label
-                      className={`flex items-center gap-4 p-4 border cursor-pointer transition-all ${paymentMethod === 'cod' ? 'border-orange-500 bg-orange-500/10' : 'border-white/10 hover:border-white/30'}`}
-                      onClick={() => setPaymentMethod('cod')}
-                    >
-                      <input type="radio" checked={paymentMethod === 'cod'} readOnly className="w-5 h-5 accent-orange-500" />
-                      <Banknote size={24} className={paymentMethod === 'cod' ? 'text-orange-500' : 'text-white/50'} />
+                    {/* COD - only available payment method */}
+                    <label className="flex items-center gap-4 p-4 border border-orange-500 bg-orange-500/10">
+                      <input type="radio" checked readOnly className="w-5 h-5 accent-orange-500" />
+                      <Banknote size={24} className="text-orange-500" />
                       <div>
                         <span className="text-white font-medium block">{t.cod}</span>
                         <span className="text-white/50 text-sm">{t.codNote}</span>
                       </div>
                     </label>
-                    <label
-                      className={`flex items-center gap-4 p-4 border cursor-pointer transition-all ${paymentMethod === 'card' ? 'border-orange-500 bg-orange-500/10' : 'border-white/10 hover:border-white/30'}`}
-                      onClick={() => setPaymentMethod('card')}
-                    >
-                      <input type="radio" checked={paymentMethod === 'card'} readOnly className="w-5 h-5 accent-orange-500" />
-                      <CreditCard size={24} className={paymentMethod === 'card' ? 'text-orange-500' : 'text-white/50'} />
-                      <div>
-                        <span className="text-white font-medium block">{t.card}</span>
-                        <span className="text-white/50 text-sm">{t.cardNote}</span>
-                      </div>
-                    </label>
 
-                    {/* Card payment note */}
-                    {paymentMethod === 'card' && (
-                      <p className="text-white/50 text-sm p-3 bg-blue-500/10 border border-blue-500/20">
-                        {lang === 'en' ? 'You will enter your card details in the next step.' : lang === 'he' ? 'תזין את פרטי הכרטיס בשלב הבא.' : 'ستدخل تفاصيل بطاقتك في الخطوة التالية.'}
-                      </p>
-                    )}
+                    {/* Credit card coming soon */}
+                    <div className="flex items-center gap-4 p-4 border border-white/10 opacity-50">
+                      <CreditCard size={24} className="text-white/30" />
+                      <div>
+                        <span className="text-white/50 font-medium block">{t.card}</span>
+                        <span className="text-white/30 text-sm">{lang === 'en' ? 'Coming soon' : lang === 'he' ? 'בקרוב' : 'قريباً'}</span>
+                      </div>
+                    </div>
 
                     {/* Promo Code Section */}
                     <div className="mt-6 p-4 border border-white/10 bg-white/[0.02]">
@@ -1000,11 +990,10 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
                   exit={{ height: 0, opacity: 0 }}
                   className="overflow-hidden"
                 >
-                  <div className="px-4 md:px-6 pb-6">
-                    {/* Place Order button for both Card and Cash (Stripe will be added later) */}
-                    {paymentMethod === 'card' && (
-                      <p className="text-white/50 text-sm p-3 bg-blue-500/10 border border-blue-500/20 mb-4">
-                        {lang === 'en' ? 'Card payment will be available soon. For now, order will be placed as pending.' : lang === 'he' ? 'תשלום בכרטיס יהיה זמין בקרוב. כרגע, ההזמנה תישמר כממתינה.' : 'سيتوفر الدفع بالبطاقة قريباً. الآن، سيتم حفظ الطلب كمعلق.'}
+                  <div className="px-4 md:px-6 pb-6 space-y-3">
+                    {orderError && (
+                      <p className="text-red-400 text-sm p-3 bg-red-500/10 border border-red-500/20">
+                        {orderError}
                       </p>
                     )}
                     <button
@@ -1043,42 +1032,18 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, cart, setCart, p
 
             {/* Cart Items */}
             <div className="p-4 md:p-6 space-y-4 max-h-[300px] overflow-y-auto">
-              {cart.map(item => (
-                <div key={item.id} className="flex gap-4">
-                  <div className="w-16 h-16 bg-zinc-800 overflow-hidden flex-shrink-0">
-                    <img src={item.img} className="w-full h-full object-cover" alt={item.name} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-white font-medium text-sm truncate">{item.name}</p>
-                    <p className="text-white/40 text-xs mt-1">{t.quantity}: {item.qty}</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      <button onClick={() => decreaseQty(item.id)} className="w-6 h-6 border border-white/20 flex items-center justify-center text-white/60 hover:bg-white/10">
-                        <Minus size={12} />
-                      </button>
-                      <span className="text-white text-sm w-6 text-center">{item.qty}</span>
-                      <button
-                        onClick={() => increaseQty(item.id)}
-                        disabled={item.qty >= MAX_QTY}
-                        className={`w-6 h-6 border border-white/20 flex items-center justify-center ${item.qty >= MAX_QTY ? 'text-white/20 cursor-not-allowed' : 'text-white/60 hover:bg-white/10'}`}
-                      >
-                        <Plus size={12} />
-                      </button>
-                      <button onClick={() => removeItem(item.id)} className="ml-auto text-white/30 hover:text-red-500">
-                        <Trash2 size={14} />
-                      </button>
-                    </div>
-                    {item.qty >= MAX_QTY && (
-                      <p className="text-orange-400 text-[10px] mt-1">
-                        {t.maxQty}{' '}
-                        <a href="/contact" className="underline hover:text-orange-300">{t.contactForMore}</a>
-                      </p>
-                    )}
-                  </div>
-                  <div className="text-right">
-                    <p className="text-white font-bold">₪{(item.price * item.qty).toLocaleString()}</p>
-                  </div>
+              <div className="flex gap-4">
+                <div className="w-16 h-16 bg-zinc-800 overflow-hidden flex-shrink-0">
+                  <img src={PRODUCT.img} className="w-full h-full object-cover" alt={PRODUCT.name} />
                 </div>
-              ))}
+                <div className="flex-1 min-w-0">
+                  <p className="text-white font-medium text-sm truncate">{PRODUCT.name}</p>
+                  <p className="text-white/40 text-xs mt-1">{t.quantity}: {PRODUCT.qty}</p>
+                </div>
+                <div className="text-right">
+                  <p className="text-white font-bold">₪{PRODUCT.price.toLocaleString()}</p>
+                </div>
+              </div>
             </div>
 
             {/* Summary */}

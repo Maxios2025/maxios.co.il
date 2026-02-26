@@ -27,7 +27,10 @@ module.exports = async function handler(req, res) {
   const expiresAt = Date.now() + 5 * 60 * 1000;
 
   // Create HMAC hash of email+code+expiry for stateless verification
-  const secret = process.env.OTP_SECRET || 'maxios-otp-secret-2026';
+  const secret = process.env.OTP_SECRET;
+  if (!secret) {
+    return res.status(500).json({ error: 'OTP service not configured' });
+  }
   const hash = crypto
     .createHmac('sha256', secret)
     .update(`${email}:${code}:${expiresAt}`)
@@ -39,9 +42,9 @@ module.exports = async function handler(req, res) {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        service_id: process.env.EMAILJS_SERVICE_ID || 'service_9sh4kyv',
-        template_id: process.env.EMAILJS_OTP_TEMPLATE_ID || 'template_otp',
-        user_id: process.env.EMAILJS_PUBLIC_KEY || '_jL_0gQsRkGzlKdZw',
+        service_id: process.env.EMAILJS_SERVICE_ID || '',
+        template_id: process.env.EMAILJS_OTP_TEMPLATE_ID || '',
+        user_id: process.env.EMAILJS_PUBLIC_KEY || '',
         template_params: {
           to_email: email,
           otp_code: code,

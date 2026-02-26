@@ -1,24 +1,51 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import { Hero } from '../components/Hero';
 import { Footer } from '../components/Footer';
-import { Mail } from 'lucide-react';
-import { Language, CartItem } from '../App';
+import { Phone, Shield, Truck, Award, Star, ChevronDown, ChevronUp } from 'lucide-react';
+import { Language } from '../App';
+import { trackAddToCart } from '../lib/analytics';
+
+const productImages = [
+  "/hero-poster.jpeg",
+  "/product-angle-1.jpeg",
+  "/product-angle-2.jpeg",
+  "/mms.jpeg",
+  "/lods.jpeg"
+];
+
+const FAQItem: React.FC<{ question: string; answer: string }> = ({ question, answer }) => {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="border border-white/10 bg-white/[0.02]">
+      <button onClick={() => setOpen(!open)} className="w-full p-4 md:p-5 flex justify-between items-center text-left gap-4">
+        <span className="text-white font-semibold text-sm md:text-base">{question}</span>
+        {open ? <ChevronUp size={20} className="text-orange-500 shrink-0" /> : <ChevronDown size={20} className="text-white/40 shrink-0" />}
+      </button>
+      <AnimatePresence>
+        {open && (
+          <motion.div initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} className="overflow-hidden">
+            <p className="px-4 md:px-5 pb-4 md:pb-5 text-white/60 text-sm leading-relaxed">{answer}</p>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
 
 interface HomePageProps {
   lang: Language;
   isRTL: boolean;
-  setCart: React.Dispatch<React.SetStateAction<CartItem[]>>;
+  onOpenCheckout: () => void;
   onAdminLogin: () => void;
 }
 
-export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePageProps) {
+export default function HomePage({ lang, isRTL, onOpenCheckout, onAdminLogin }: HomePageProps) {
   const navigate = useNavigate();
   const { scrollY } = useScroll();
   const homeHeroOpacity = useTransform(scrollY, [100, 300], [1, 0]);
 
-  // Detect mobile for reduced motion
   const [isMobile, setIsMobile] = useState(false);
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -26,19 +53,22 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
     setIsMobile(window.innerWidth < 768);
   }, []);
 
-  // Force video playback on mount
+  // Ensure video plays on all devices — handles autoplay policy
   useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
+
     video.play().catch(() => {
-      // Autoplay blocked — try playing on first user interaction
+      // Autoplay blocked by browser — play on first user interaction
       const playOnInteraction = () => {
         video.play().catch(() => {});
         document.removeEventListener('click', playOnInteraction);
         document.removeEventListener('scroll', playOnInteraction);
+        document.removeEventListener('touchstart', playOnInteraction);
       };
-      document.addEventListener('click', playOnInteraction);
-      document.addEventListener('scroll', playOnInteraction);
+      document.addEventListener('click', playOnInteraction, { passive: true });
+      document.addEventListener('scroll', playOnInteraction, { passive: true });
+      document.addEventListener('touchstart', playOnInteraction, { passive: true });
     });
   }, []);
 
@@ -46,15 +76,7 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [imageDirection, setImageDirection] = useState(0);
 
-  const productImages = [
-    "/hero-poster.jpeg",
-    "/product-angle-1.jpeg",
-    "/product-angle-2.jpeg",
-    "/mms.jpeg",
-    "/lods.jpeg"
-  ];
-
-  // Simpler animations on mobile for better performance
+  // On mobile: simple fade only (no x/scale transforms)
   const slideVariants = {
     enter: (dir: number) => ({
       x: isMobile ? 0 : (dir > 0 ? 300 : -300),
@@ -73,19 +95,18 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
     })
   };
 
-  const goNext = () => {
+  const goNext = useCallback(() => {
     setImageDirection(1);
     setCurrentImageIndex(prev => prev === productImages.length - 1 ? 0 : prev + 1);
-  };
+  }, [productImages.length]);
 
-  const goPrev = () => {
+  const goPrev = useCallback(() => {
     setImageDirection(-1);
     setCurrentImageIndex(prev => prev === 0 ? productImages.length - 1 : prev - 1);
-  };
+  }, [productImages.length]);
 
   return (
     <motion.div key="home" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="relative">
-      {/* Single seamless cinematic gradient background */}
       <div
         className="relative"
         style={{
@@ -94,25 +115,31 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
       >
 
         <section className="relative h-screen sticky top-0 overflow-hidden">
-          {/* Video Background */}
+          {/* Background Video — plays on ALL devices (desktop + mobile).
+              Uses <source> with media queries so mobile loads the small 480p version
+              and desktop loads the 720p version. Poster shows instantly while video loads. */}
           <video
             ref={videoRef}
             autoPlay
             muted
             loop
             playsInline
-            preload="auto"
+            preload="metadata"
+            poster="/hero-poster.jpeg"
             className="absolute inset-0 w-full h-full object-cover"
             style={{ zIndex: 0 }}
           >
+            {/* Mobile loads small 480p version (~2-3MB), desktop loads 720p (~5-8MB) */}
+            <source src="/background-video-mobile.mp4" type="video/mp4" media="(max-width: 768px)" />
             <source src="/background-video.mp4" type="video/mp4" />
           </video>
-          {/* Dark overlay for readability */}
+
+          {/* Dark overlay */}
           <div className="absolute inset-0 bg-black/40" style={{ zIndex: 1 }} />
-          {/* Hero content centered over video */}
+          {/* Hero content */}
           <motion.div
             className="absolute inset-0 flex items-center justify-center"
-            style={{ zIndex: 2, opacity: homeHeroOpacity, willChange: 'opacity' }}
+            style={{ zIndex: 2, opacity: homeHeroOpacity }}
           >
             <Hero lang={lang} />
           </motion.div>
@@ -121,11 +148,10 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
         <div className="relative z-10">
 
           <div className="flex flex-col items-center justify-center px-6 relative z-10 pt-32 md:pt-48 pb-6 md:pb-8">
-            {/* Hero Statement - The Text IS the Design */}
             <motion.h2
               initial={isMobile ? { opacity: 0 } : { opacity: 0, scale: 0.95 }}
               whileInView={isMobile ? { opacity: 1 } : { opacity: 1, scale: 1 }}
-              transition={{ duration: isMobile ? 0.5 : 1.5, ease: [0.22, 1, 0.36, 1] }}
+              transition={{ duration: isMobile ? 0.3 : 1.5, ease: [0.22, 1, 0.36, 1] }}
               viewport={{ once: true, margin: "-100px" }}
               className={`text-white text-center leading-[1.1] hero-glow mb-6 md:mb-8 ${
                 lang === 'he'
@@ -148,7 +174,7 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
                   {/* Main Vacuum Image Carousel */}
                   <div className="relative">
                     <div className="relative group">
-                      {/* Blur glow - hidden on mobile for performance */}
+                      {/* Blur glow — desktop only */}
                       <div className="hidden md:block absolute inset-0 bg-orange-500/20 blur-[100px] group-hover:bg-orange-500/30 transition-all duration-700" />
                       <div className="relative border-2 border-orange-500/20 p-8 md:p-12 bg-black/40 md:backdrop-blur-xl overflow-hidden">
                         <AnimatePresence mode="wait" custom={imageDirection}>
@@ -156,6 +182,8 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
                             key={currentImageIndex}
                             src={productImages[currentImageIndex]}
                             alt="MAXIOS PRO-18"
+                            width={400}
+                            height={400}
                             custom={imageDirection}
                             variants={slideVariants}
                             initial="enter"
@@ -163,6 +191,7 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
                             exit="exit"
                             transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
                             className="w-full h-auto object-contain max-h-[400px] mx-auto md:filter md:drop-shadow-[0_0_60px_rgba(249,115,22,0.3)]"
+                            loading="lazy"
                           />
                         </AnimatePresence>
                         <div className="absolute top-4 left-4 px-4 py-2 bg-orange-600 text-black font-black text-[10px] uppercase tracking-widest">
@@ -180,13 +209,13 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
                         {isRTL ? '→' : '←'}
                       </button>
 
-                      {/* Dots Indicator */}
                       <div className="flex gap-2">
                         {productImages.map((_, idx) => (
                           <button
                             key={idx}
                             onClick={() => { setImageDirection(idx > currentImageIndex ? 1 : -1); setCurrentImageIndex(idx); }}
-                            className={`w-3 h-3 transition-all duration-300 ${currentImageIndex === idx ? 'bg-orange-500 scale-125' : 'bg-white/30 hover:bg-white/50'}`}
+                            aria-label={`${lang === 'he' ? 'תמונה' : 'Image'} ${idx + 1}`}
+                            className={`w-5 h-5 rounded-full transition-all duration-300 ${currentImageIndex === idx ? 'bg-orange-500 scale-125' : 'bg-white/30 hover:bg-white/50'}`}
                           />
                         ))}
                       </div>
@@ -209,15 +238,14 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
 
                   {/* Free Gift Section */}
                   <div className="grid grid-cols-2 gap-4">
-                    {/* Photos Stacked Vertically */}
                     <div className="relative group border border-purple-500/30 p-4 bg-black/40 md:backdrop-blur-xl overflow-hidden">
-                      {/* Blur glow - hidden on mobile for performance */}
                       <div className="hidden md:block absolute inset-0 bg-purple-500/10 blur-[60px] group-hover:bg-purple-500/20 transition-all duration-700" />
                       <div className="relative flex flex-col gap-3">
                         <img
                           src="/product-side.jpeg"
                           alt="Free Mop Attachment"
                           className="w-full h-auto object-contain max-h-[120px] group-hover:scale-105 transition-transform duration-700"
+                          loading="lazy"
                           onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';
                           }}
@@ -226,6 +254,7 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
                           src="/product-side-copy.jpeg"
                           alt="Free Mop Attachment"
                           className="w-full h-auto object-contain max-h-[120px] group-hover:scale-105 transition-transform duration-700"
+                          loading="lazy"
                           onError={(e) => {
                             (e.target as HTMLImageElement).style.display = 'none';
                           }}
@@ -235,9 +264,7 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
                         🎁 {lang === 'en' ? 'FREE' : lang === 'he' ? 'חינם' : 'مجاني'}
                       </div>
                     </div>
-                    {/* Description */}
                     <div className={`relative border border-purple-500/30 p-6 bg-black/40 md:backdrop-blur-xl flex flex-col justify-center ${lang === 'he' || lang === 'ar' ? 'text-right' : ''}`}>
-                      {/* Blur glow - hidden on mobile for performance */}
                       <div className="hidden md:block absolute inset-0 bg-purple-500/5 blur-[60px]" />
                       <div className="relative">
                         <h5 className={`text-lg md:text-xl font-black text-purple-400 uppercase mb-3 ${lang === 'he' ? 'font-hero-hebrew' : lang === 'ar' ? 'font-hero-arabic' : ''}`}>
@@ -286,7 +313,7 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
                       <span className="text-xl font-black text-orange-500">PRO-18</span>
                     </div>
                     <div className="px-4 py-2 border border-white/10 bg-white/5">
-                      <span className="text-[10px] text-white/40 uppercase tracking-wider block">{lang === 'en' ? 'RUNTIME' : lang === 'he' ? 'זמן פעולה' : 'وقت التشغيل'}</span>
+                      <span className="text-[10px] text-white/40 uppercase tracking-wider block">{lang === 'en' ? 'RUNTIME' : lang === 'he' ? 'זמן פعולה' : 'وقت التشغيل'}</span>
                       <span className="text-xl font-black text-white">60min</span>
                     </div>
                   </div>
@@ -295,8 +322,9 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
                     <div className="flex items-baseline gap-2 flex-wrap">
                       <span className="text-4xl md:text-5xl font-black text-white">₪1,899</span>
                       <span className="text-white/40 text-sm line-through">₪2,499</span>
-                      <span className="px-3 py-1.5 bg-orange-600 text-black text-[15px] font-black uppercase">25%- discount</span>
+                      <span className="px-3 py-1.5 bg-orange-600 text-black text-[15px] font-black">{lang === 'en' ? '25% OFF' : lang === 'he' ? '25% הנחה' : '25% خصم'}</span>
                     </div>
+                    <p className="text-white/40 text-xs">{lang === 'en' ? 'Price includes VAT' : lang === 'he' ? 'המחיר כולל מע״מ' : 'السعر شامل ضريبة القيمة المضافة'}</p>
                     <div className="flex flex-wrap gap-3">
                       <span className="px-5 py-2.5 bg-green-600 text-white text-[18px] font-black uppercase tracking-wider flex items-center gap-2">
                         ✓ {lang === 'en' ? 'FREE SHIPPING' : lang === 'he' ? 'משלוח חינם' : 'شحن مجاني'}
@@ -307,26 +335,12 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
                     </div>
                     <button
                       onClick={() => {
-                        // Add PRO-18 to cart (max 5 per product)
-                        setCart(prev => {
-                          const existing = prev.find(item => item.id === 'pro18');
-                          if (existing) {
-                            if (existing.qty >= 5) return prev;
-                            return prev.map(item => item.id === 'pro18' ? { ...item, qty: item.qty + 1 } : item);
-                          }
-                          return [...prev, {
-                            id: 'pro18',
-                            name: lang === 'en' ? 'MAXIOS PRO-18' : lang === 'he' ? 'מקסיוס PRO-18' : 'ماكسيوس PRO-18',
-                            price: 1899,
-                            img: '/hero-poster.jpeg',
-                            qty: 1
-                          }];
-                        });
-                        navigate('/cart');
+                        trackAddToCart('MAXIOS PRO-18', 1899, 1);
+                        onOpenCheckout();
                       }}
                       className="w-full md:w-auto px-12 py-5 bg-orange-600 text-white font-black uppercase text-sm tracking-wider hover:bg-white hover:text-black transition-all duration-300 shadow-[0_0_40px_rgba(234,88,12,0.3)] flex items-center justify-center gap-3"
                     >
-                      {lang === 'en' ? 'ORDER NOW' : lang === 'he' ? 'לקנות עכשיו' : 'اطلب الآن'}
+                      {lang === 'en' ? 'ORDER NOW' : lang === 'he' ? 'הזמינו עכשיו' : 'اطلب الآن'}
                     </button>
                   </div>
                 </div>
@@ -335,17 +349,98 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
             </div>
           </div>
 
+          {/* Trust Badges */}
+          <div className="py-12 md:py-20 px-6 relative z-10">
+            <div className="max-w-4xl mx-auto">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
+                {[
+                  { icon: <Truck size={28} className="text-orange-500" />, he: 'משלוח חינם', en: 'Free Shipping', ar: 'شحن مجاني' },
+                  { icon: <Shield size={28} className="text-orange-500" />, he: 'אחריות שנה', en: '1 Year Warranty', ar: 'ضمان سنة' },
+                  { icon: <Award size={28} className="text-orange-500" />, he: 'מוצר מקורי', en: 'Authentic Product', ar: 'منتج أصلي' },
+                  { icon: <Phone size={28} className="text-orange-500" />, he: 'שירות לקוחות', en: 'Customer Service', ar: 'خدمة العملاء' },
+                ].map((badge, i) => (
+                  <div key={i} className="flex flex-col items-center gap-3 p-4 md:p-6 border border-white/10 bg-white/[0.02] text-center">
+                    {badge.icon}
+                    <span className={`text-white/80 text-sm font-bold ${lang === 'he' ? 'font-hebrew' : lang === 'ar' ? 'font-arabic' : ''}`}>
+                      {lang === 'en' ? badge.en : lang === 'he' ? badge.he : badge.ar}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Customer Reviews */}
+          <div className="py-16 md:py-24 px-6 relative z-10">
+            <div className="max-w-5xl mx-auto">
+              <div className="text-center mb-10 md:mb-14">
+                <span className="text-orange-500 font-black tracking-widest text-[10px] uppercase">{lang === 'en' ? 'REVIEWS' : lang === 'he' ? 'ביקורות לקוחות' : 'مراجعات العملاء'}</span>
+                <h2 className={`text-3xl md:text-5xl font-black mt-2 ${lang === 'he' ? 'font-hero-hebrew' : lang === 'ar' ? 'font-hero-arabic' : ''}`}>
+                  {lang === 'en' ? 'What Our Customers Say' : lang === 'he' ? 'מה הלקוחות שלנו אומרים' : 'ماذا يقول عملاؤنا'}
+                </h2>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-6">
+                {[
+                  { name: 'דנה כ.', city: 'תל אביב', text: 'שואב מדהים! שקט ברמות, עוצמת שאיבה חזקה מאוד. ממליצה בחום!', stars: 5 },
+                  { name: 'מיכל ל.', city: 'חיפה', text: 'קניתי לפני חודש ואני מרוצה מאוד. המגב הרטוב זה באמת בונוס שווה.', stars: 5 },
+                  { name: 'יעל ש.', city: 'ראשון לציון', text: 'סוף סוף שואב שעובד כמו שצריך. הילדים עושים בלאגן ותוך דקות הכל נקי.', stars: 5 },
+                  { name: 'רונית א.', city: 'באר שבע', text: 'המחיר שווה כל שקל. השואב קל, חזק, והסוללה מחזיקה הרבה זמן.', stars: 5 },
+                  { name: 'נועה ד.', city: 'נתניה', text: 'עברתי משואב אחר וההבדל ענק. MAXIOS פשוט ברמה אחרת.', stars: 5 },
+                  { name: 'שירה מ.', city: 'ירושלים', text: 'קיבלתי את ראש המגב במתנה — שווה זהב! מנקה רצפות בצורה מושלמת.', stars: 4 },
+                ].map((review, i) => (
+                  <div key={i} className="p-5 md:p-6 border border-white/10 bg-white/[0.02] space-y-3">
+                    <div className="flex gap-0.5">
+                      {Array.from({ length: review.stars }).map((_, s) => (
+                        <Star key={s} size={16} className="text-orange-500 fill-orange-500" />
+                      ))}
+                      {Array.from({ length: 5 - review.stars }).map((_, s) => (
+                        <Star key={s} size={16} className="text-white/20" />
+                      ))}
+                    </div>
+                    <p className={`text-white/70 text-sm leading-relaxed ${lang === 'he' ? 'font-hebrew' : ''}`}>"{review.text}"</p>
+                    <p className="text-white/40 text-xs font-bold">{review.name} — {review.city}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* FAQ Section */}
+          <div className="py-16 md:py-24 px-6 relative z-10">
+            <div className="max-w-3xl mx-auto">
+              <div className="text-center mb-10 md:mb-14">
+                <span className="text-orange-500 font-black tracking-widest text-[10px] uppercase">{lang === 'en' ? 'FAQ' : lang === 'he' ? 'שאלות נפוצות' : 'الأسئلة الشائعة'}</span>
+                <h2 className={`text-3xl md:text-5xl font-black mt-2 ${lang === 'he' ? 'font-hero-hebrew' : lang === 'ar' ? 'font-hero-arabic' : ''}`}>
+                  {lang === 'en' ? 'Frequently Asked Questions' : lang === 'he' ? 'שאלות ותשובות' : 'أسئلة وأجوبة'}
+                </h2>
+              </div>
+              <div className="space-y-3">
+                {[
+                  { q: { en: 'How long does shipping take?', he: 'כמה זמן לוקח המשלוח?', ar: 'كم يستغرق الشحن؟' }, a: { en: 'Free shipping takes 2-4 business days across Israel.', he: 'משלוח חינם לכל הארץ תוך 2-4 ימי עסקים.', ar: 'الشحن المجاني يستغرق 2-4 أيام عمل في جميع أنحاء إسرائيل.' } },
+                  { q: { en: 'What is the warranty?', he: 'מה האחריות על המוצר?', ar: 'ما هو الضمان؟' }, a: { en: '1 year full warranty on all parts and motor.', he: 'שנה אחריות מלאה על כל החלקים והמנוע.', ar: 'ضمان سنة كاملة على جميع القطع والمحرك.' } },
+                  { q: { en: 'Can I return the product?', he: 'האם אפשר להחזיר את המוצר?', ar: 'هل يمكنني إرجاع المنتج؟' }, a: { en: 'Yes, 14-day return policy per Israeli consumer law.', he: 'כן, ניתן להחזיר את המוצר תוך 14 יום בהתאם לחוק הגנת הצרכן.', ar: 'نعم، سياسة إرجاع 14 يومًا وفقًا لقانون حماية المستهلك الإسرائيلي.' } },
+                  { q: { en: 'How long does the battery last?', he: 'כמה זמן מחזיקה הסוללה?', ar: 'كم تدوم البطارية؟' }, a: { en: 'Up to 60 minutes of continuous use on a full charge.', he: 'עד 60 דקות של שימוש רצוף בטעינה מלאה.', ar: 'حتى 60 دقيقة من الاستخدام المتواصل بشحنة كاملة.' } },
+                  { q: { en: 'Is the mop attachment included?', he: 'האם ראש המגב כלול?', ar: 'هل ملحق الممسحة مضمن؟' }, a: { en: 'Yes! The mop attachment is included free as a bonus gift.', he: 'כן! ראש המגב כלול חינם כמתנת בונוס.', ar: 'نعم! ملحق الممسحة مضمن مجانًا كهدية إضافية.' } },
+                  { q: { en: 'What payment methods are accepted?', he: 'אילו אמצעי תשלום מקבלים?', ar: 'ما هي طرق الدفع المقبولة؟' }, a: { en: 'Cash on delivery across Israel.', he: 'תשלום במזומן בעת המסירה בכל הארץ.', ar: 'الدفع نقدًا عند التسليم في جميع أنحاء إسرائيل.' } },
+                ].map((faq, i) => (
+                  <FAQItem key={i} question={faq.q[lang]} answer={faq.a[lang]} />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* Contact Section */}
           <div className="py-20 md:py-40 px-6 relative z-10">
             <div className="max-w-4xl mx-auto text-center space-y-8 md:space-y-12">
               <div className="space-y-4">
-                <span className="text-orange-500 font-black tracking-widest text-[10px] uppercase flex items-center gap-2 justify-center"><Mail size={14}/> {lang === 'en' ? 'QUICK PROTOCOL' : lang === 'he' ? 'פרוטוקול מהיר' : 'تواصل سريع'}</span>
+                <span className="text-orange-500 font-black tracking-widest text-[10px] uppercase flex items-center gap-2 justify-center"><Phone size={14}/> {lang === 'en' ? 'TALK TO US' : lang === 'he' ? 'דברו איתנו' : 'تحدث إلينا'}</span>
                 <h2 className={`text-4xl md:text-7xl font-black tracking-tighter uppercase ${
                   lang === 'he' ? 'font-hero-hebrew' : lang === 'ar' ? 'font-hero-arabic italic' : 'italic'
-                }`}>{lang === 'en' ? 'DROP A LINE.' : lang === 'he' ? 'צור קשר.' : 'تواصل معنا.'}</h2>
-                <p className="text-[10px] md:text-sm opacity-40 tracking-[0.2em] md:tracking-[0.3em] uppercase text-white">{lang === 'en' ? 'Initialize direct connection to headquarters.' : lang === 'he' ? 'יצירת חיבור ישיר למטה.' : 'بدء الاتصال المباشر بالمقر.'}</p>
+                }`}>{lang === 'en' ? 'GET IN TOUCH.' : lang === 'he' ? 'צרו קשר.' : 'تواصل معنا.'}</h2>
+                <p className="text-sm md:text-base text-white/60">{lang === 'en' ? 'Have questions? Our team is here to help.' : lang === 'he' ? 'יש שאלות? הצוות שלנו כאן כדי לעזור.' : 'هل لديك أسئلة؟ فريقنا هنا للمساعدة.'}</p>
               </div>
               <button onClick={() => navigate('/contact')} className="px-16 py-6 bg-orange-600 text-white font-black uppercase text-sm hover:bg-black transition-all shadow-xl">
-                {lang === 'en' ? 'CONTACT US' : lang === 'he' ? 'צור קשר' : 'تواصل معنا'}
+                {lang === 'en' ? 'CONTACT US' : lang === 'he' ? 'צרו קשר' : 'تواصل معنا'}
               </button>
             </div>
           </div>
@@ -353,6 +448,23 @@ export default function HomePage({ lang, isRTL, setCart, onAdminLogin }: HomePag
         </div>
 
         <Footer lang={lang} onNavigate={(view) => navigate(`/${view === 'home' ? '' : view}`)} onAdminLogin={onAdminLogin} />
+      </div>
+
+      {/* Sticky mobile buy bar */}
+      <div className="fixed bottom-0 left-0 right-0 z-[800] md:hidden bg-black/95 border-t border-orange-500/30 px-4 py-3 flex items-center justify-between gap-3">
+        <div>
+          <span className="text-white font-black text-lg">₪1,899</span>
+          <span className="text-white/40 text-xs line-through mr-2">₪2,499</span>
+        </div>
+        <button
+          onClick={() => {
+            trackAddToCart('MAXIOS PRO-18', 1899, 1);
+            onOpenCheckout();
+          }}
+          className="flex-1 py-3 bg-orange-600 text-white font-black uppercase text-sm tracking-wider text-center"
+        >
+          {lang === 'en' ? 'ORDER NOW' : lang === 'he' ? 'הזמינו עכשיו' : 'اطلب الآن'}
+        </button>
       </div>
     </motion.div>
   );

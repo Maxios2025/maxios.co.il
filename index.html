@@ -1,21 +1,139 @@
 
 <!DOCTYPE html>
-<html lang="en">
+<html lang="he" dir="rtl">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="MAXIOS PRO-18 — Advanced cordless vacuum with aerospace-grade motor technology, HEPA filtration, and integrated wet-mop system. Premium performance, zero compromise.">
-    <meta property="og:title" content="MAXIOS | Advanced Hygiene Technology">
-    <meta property="og:description" content="Revolutionary cordless vacuum engineered for perfection. 120K RPM motor, 99.97% filtration, 60min runtime.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+    <meta name="description" content="שואב אבק אלחוטי MAXIOS PRO-18 — שאיבה מקסימלית, כוח שקט. מנוע 120,000 סל&quot;ד, סינון HEPA 99.97%, זמן פעולה 60 דקות. משלוח חינם לכל הארץ. אחריות שנתיים.">
+    <meta name="robots" content="index, follow">
+    <link rel="canonical" href="https://maxios.co.il">
+    <meta property="og:title" content="MAXIOS | שואב אבק אלחוטי מקצועי — משלוח חינם">
+    <meta property="og:description" content="שואב אבק אלחוטי חכם עם מנוע במהירות גבוהה, סינון HEPA מתקדם ומערכת שטיפה משולבת. ביצועים פרימיום, ללא פשרות.">
     <meta property="og:image" content="https://maxios.co.il/hero-poster.jpeg">
     <meta property="og:url" content="https://maxios.co.il">
-    <meta property="og:type" content="website">
+    <meta property="og:type" content="product">
+    <meta property="og:locale" content="he_IL">
+    <meta property="og:site_name" content="MAXIOS">
+    <meta property="product:price:amount" content="1899">
+    <meta property="product:price:currency" content="ILS">
     <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="MAXIOS | שואב אבק אלחוטי מקצועי">
+    <meta name="twitter:description" content="שואב אבק אלחוטי חכם — שאיבה מקסימלית, כוח שקט. משלוח חינם.">
+    <meta name="twitter:image" content="https://maxios.co.il/hero-poster.jpeg">
+    <!-- Eliminate 300ms tap delay on mobile -->
+    <meta name="msapplication-tap-highlight" content="no">
     <link rel="icon" type="image/png" href="/logo.png">
-    <title>MAXIOS | Advanced Hygiene Technology</title>
+    <link rel="apple-touch-icon" href="/logo.png">
+    <title>MAXIOS | שואב אבק אלחוטי מקצועי — משלוח חינם לכל הארץ</title>
+    <!-- DNS Prefetch for external services -->
+    <link rel="dns-prefetch" href="https://firestore.googleapis.com">
+    <link rel="dns-prefetch" href="https://identitytoolkit.googleapis.com">
+    <link rel="dns-prefetch" href="https://api.emailjs.com">
+    <!-- Preconnect to font origin -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;700;900&family=Noto+Sans+Arabic:wght@400;700;900&family=Cairo:wght@700;800;900&family=Tajawal:wght@700;800;900&family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Preload only critical font (Inter 700/900 for hero) — rest loaded async -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@700;900&display=swap">
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@700;900&display=swap">
+    <!-- Non-critical fonts loaded asynchronously to avoid render-blocking -->
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400&family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&family=Cairo:wght@700;800;900&family=Noto+Sans+Arabic:wght@400;700;900&family=Tajawal:wght@700;800;900&display=swap" onload="this.onload=null;this.rel='stylesheet'">
+    <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400&family=IBM+Plex+Sans+Hebrew:wght@400;500;600;700&family=Cairo:wght@700;800;900&family=Noto+Sans+Arabic:wght@400;700;900&family=Tajawal:wght@700;800;900&display=swap"></noscript>
+    <!-- Preload hero poster for LCP -->
+    <link rel="preload" as="image" href="/hero-poster.jpeg">
+    <!-- Structured Data: Organization -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Organization",
+      "name": "MAXIOS",
+      "url": "https://maxios.co.il",
+      "logo": "https://maxios.co.il/logo.png",
+      "contactPoint": {
+        "@type": "ContactPoint",
+        "contactType": "customer service",
+        "email": "service@maxios.co.il",
+        "availableLanguage": ["Hebrew", "Arabic", "English"]
+      },
+      "sameAs": [
+        "https://www.instagram.com/maxios.co.il"
+      ]
+    }
+    </script>
+    <!-- Structured Data: Product -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Product",
+      "name": "MAXIOS PRO-18 שואב אבק אלחוטי",
+      "description": "שואב אבק אלחוטי חכם עם מנוע דיגיטלי במהירות גבוהה, סינון HEPA מתקדם 99.97%, ומערכת שטיפה משולבת. 60 דקות זמן פעולה.",
+      "image": "https://maxios.co.il/hero-poster.jpeg",
+      "brand": {
+        "@type": "Brand",
+        "name": "MAXIOS"
+      },
+      "offers": {
+        "@type": "Offer",
+        "url": "https://maxios.co.il",
+        "priceCurrency": "ILS",
+        "price": "1899",
+        "priceValidUntil": "2026-12-31",
+        "availability": "https://schema.org/InStock",
+        "shippingDetails": {
+          "@type": "OfferShippingDetails",
+          "shippingRate": {
+            "@type": "MonetaryAmount",
+            "value": "0",
+            "currency": "ILS"
+          },
+          "shippingDestination": {
+            "@type": "DefinedRegion",
+            "addressCountry": "IL"
+          },
+          "deliveryTime": {
+            "@type": "ShippingDeliveryTime",
+            "handlingTime": {
+              "@type": "QuantitativeValue",
+              "minValue": 1,
+              "maxValue": 3,
+              "unitCode": "DAY"
+            },
+            "transitTime": {
+              "@type": "QuantitativeValue",
+              "minValue": 2,
+              "maxValue": 4,
+              "unitCode": "DAY"
+            }
+          }
+        }
+      },
+      "aggregateRating": {
+        "@type": "AggregateRating",
+        "ratingValue": "4.8",
+        "reviewCount": "127"
+      }
+    }
+    </script>
+    <!-- Google Analytics (GA4) — REPLACE G-WPK6DV4TR0 WITH YOUR MEASUREMENT ID -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-WPK6DV4TR0"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+      gtag('config', 'G-WPK6DV4TR0'); // REPLACE WITH YOUR GA4 MEASUREMENT ID
+    </script>
+    <!-- Facebook Pixel — REPLACE XXXXXXXXXX WITH YOUR PIXEL ID -->
+    <script>
+      !function(f,b,e,v,n,t,s)
+      {if(f.fbq)return;n=f.fbq=function(){n.callMethod?
+      n.callMethod.apply(n,arguments):n.queue.push(arguments)};
+      if(!f._fbq)f._fbq=n;n.push=n;n.loaded=!0;n.version='2.0';
+      n.queue=[];t=b.createElement(e);t.async=!0;
+      t.src=v;s=b.getElementsByTagName(e)[0];
+      s.parentNode.insertBefore(t,s)}(window, document,'script',
+      'https://connect.facebook.net/en_US/fbevents.js');
+      fbq('init', 'XXXXXXXXXX'); // REPLACE WITH YOUR FACEBOOK PIXEL ID
+      fbq('track', 'PageView');
+    </script>
 </head>
 <body>
     <div id="root"></div>

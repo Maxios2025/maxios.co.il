@@ -26,7 +26,10 @@ module.exports = async function handler(req, res) {
   }
 
   // Recompute HMAC and compare
-  const secret = process.env.OTP_SECRET || 'maxios-otp-secret-2026';
+  const secret = process.env.OTP_SECRET;
+  if (!secret) {
+    return res.status(500).json({ error: 'OTP service not configured', valid: false });
+  }
   const expectedHash = crypto
     .createHmac('sha256', secret)
     .update(`${email}:${code}:${expiresAt}`)

@@ -28,3 +28,8 @@ nul
 
 .vercel
 .env*.local
+.env.vercel
+.env
+
+# Large video originals (not needed for deployment)
+public/background-video-original.mp4

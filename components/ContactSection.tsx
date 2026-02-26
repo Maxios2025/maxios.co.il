@@ -202,14 +202,14 @@ export const ContactSection: React.FC<ContactSectionProps> = ({ lang }) => {
               <div className="p-4 border border-white/5 bg-white/5 group-hover:border-orange-500 transition-colors"><Phone className="text-orange-500" size={24} /></div>
               <div className={isRTL ? 'text-right' : ''}>
                 <p className="text-[10px] font-black tracking-widest text-white/20 uppercase">DIRECT LINE</p>
-                <p className="text-lg font-medium text-white/80" style={{ direction: 'ltr', display: 'block', textAlign: isRTL ? 'right' : 'left' }}>+972 55 949 2403</p>
+                <p className="text-lg font-medium text-white/80" style={{ direction: 'ltr', display: 'block', textAlign: isRTL ? 'right' : 'left' }}>+972 52 993 2765</p>
               </div>
             </div>
-            <a href="https://wa.me/972559492403" target="_blank" rel="noopener noreferrer" className={`flex items-center gap-6 group ${isRTL ? 'flex-row-reverse' : ''}`}>
+            <a href="https://wa.me/972529932765" target="_blank" rel="noopener noreferrer" className={`flex items-center gap-6 group ${isRTL ? 'flex-row-reverse' : ''}`}>
               <div className="p-4 border border-white/5 bg-white/5 group-hover:border-orange-500 transition-colors"><MessageCircle className="text-orange-500" size={24} /></div>
               <div className={isRTL ? 'text-right' : ''}>
                 <p className="text-[10px] font-black tracking-widest text-white/20 uppercase">WHATSAPP</p>
-                <p className="text-lg font-medium text-white/80" style={{ direction: 'ltr', display: 'block', textAlign: isRTL ? 'right' : 'left' }}>+972 55 949 2403</p>
+                <p className="text-lg font-medium text-white/80" style={{ direction: 'ltr', display: 'block', textAlign: isRTL ? 'right' : 'left' }}>+972 52 993 2765</p>
               </div>
             </a>
           </div>

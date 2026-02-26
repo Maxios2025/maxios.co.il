@@ -1,11 +1,12 @@
 // Google Sheets Web App URL for fetching orders
-const GOOGLE_SHEETS_URL = 'https://script.google.com/macros/s/AKfycbzsIJQvWBVDI4MWVp195oQDv0rnNYG32GCGQ8GVIXBSCkB8amDDq6CXly-7wYA24BcT/exec';
+const GOOGLE_SHEETS_URL = process.env.GOOGLE_SHEETS_URL || '';
 
-const BOT_TOKEN = '8543792815:AAFGUJX2jred2jChv3sIbV5E5MdLpa-I4No';
-const ORDERS_CHAT_ID = '-5107622756';
+const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN || '';
+const ORDERS_CHAT_ID = process.env.TELEGRAM_ORDERS_CHAT_ID || '';
 
 // Send text message
 async function sendMessage(chatId, text) {
+  if (!BOT_TOKEN) return;
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`;
   await fetch(url, {
     method: 'POST',
@@ -16,6 +17,7 @@ async function sendMessage(chatId, text) {
 
 // Send document using multipart form data
 async function sendDocument(chatId, csvContent, filename) {
+  if (!BOT_TOKEN) return { ok: false, error: 'Bot token not configured' };
   const url = `https://api.telegram.org/bot${BOT_TOKEN}/sendDocument`;
 
   // Create multipart form data manually
@@ -52,7 +54,12 @@ async function sendDocument(chatId, csvContent, filename) {
 }
 
 export default async function handler(req, res) {
-  res.setHeader('Access-Control-Allow-Origin', '*');
+  // Restrict CORS to known origins
+  const origin = req.headers.origin || '';
+  const allowed = ['https://maxios.co.il', 'https://www.maxios.co.il', 'http://localhost:3000'];
+  if (allowed.includes(origin)) {
+    res.setHeader('Access-Control-Allow-Origin', origin);
+  }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
@@ -62,6 +69,10 @@ export default async function handler(req, res) {
 
   if (req.method !== 'POST') {
     return res.status(405).json({ error: 'Method not allowed' });
+  }
+
+  if (!BOT_TOKEN) {
+    return res.status(200).json({ ok: true, error: 'Bot not configured' });
   }
 
   try {
@@ -80,6 +91,11 @@ export default async function handler(req, res) {
         }
 
         await sendMessage(chatId, '⏳ Fetching orders from Google Sheets...');
+
+        if (!GOOGLE_SHEETS_URL) {
+          await sendMessage(chatId, '❌ Google Sheets URL not configured.');
+          return res.status(200).json({ ok: true });
+        }
 
         // Fetch CSV directly from Google Sheets
         const response = await fetch(GOOGLE_SHEETS_URL);
@@ -100,7 +116,7 @@ export default async function handler(req, res) {
 
         if (!result.ok) {
           console.error('Failed to send document:', result);
-          await sendMessage(chatId, `❌ Failed to send file. Error: ${JSON.stringify(result)}`);
+          await sendMessage(chatId, '❌ Failed to send file.');
         } else {
           await sendMessage(chatId, `✅ Export complete! ${orderCount} orders exported.`);
         }
@@ -122,6 +138,6 @@ export default async function handler(req, res) {
     return res.status(200).json({ ok: true });
   } catch (error) {
     console.error('Webhook error:', error);
-    return res.status(200).json({ ok: true, error: error.message });
+    return res.status(200).json({ ok: true });
   }
 }
