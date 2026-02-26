@@ -453,22 +453,6 @@ export default function HomePage({ lang, isRTL, onOpenCheckout, onAdminLogin }: 
         <Footer lang={lang} onNavigate={(view) => navigate(`/${view === 'home' ? '' : view}`)} onAdminLogin={onAdminLogin} />
       </div>
 
-      {/* Sticky mobile buy bar */}
-      <div className="fixed bottom-0 left-0 right-0 z-[800] md:hidden bg-black/95 border-t border-orange-500/30 px-4 py-3 flex items-center justify-between gap-3">
-        <div>
-          <span className="text-white font-black text-lg">₪1,899</span>
-          <span className="text-white/40 text-xs line-through mr-2">₪2,499</span>
-        </div>
-        <button
-          onClick={() => {
-            trackAddToCart('MAXIOS PRO-18', 1899, 1);
-            onOpenCheckout();
-          }}
-          className="flex-1 py-3 bg-orange-600 text-white font-black uppercase text-sm tracking-wider text-center"
-        >
-          {lang === 'en' ? 'ORDER NOW' : lang === 'he' ? 'הזמינו עכשיו' : 'اطلب الآن'}
-        </button>
-      </div>
     </motion.div>
   );
 }
