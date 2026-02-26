@@ -124,9 +124,11 @@ export default function HomePage({ lang, isRTL, onOpenCheckout, onAdminLogin }: 
             muted
             loop
             playsInline
+            disablePictureInPicture
+            controlsList="nodownload nofullscreen noremoteplayback"
             preload="metadata"
             poster="/hero-poster.jpeg"
-            className="absolute inset-0 w-full h-full object-cover"
+            className="absolute inset-0 w-full h-full object-cover pointer-events-none"
             style={{ zIndex: 0 }}
           >
             {/* Mobile loads small 480p version (~2-3MB), desktop loads 720p (~5-8MB) */}

@@ -97,7 +97,10 @@
 /* Hide reCAPTCHA badge */
 .grecaptcha-badge { visibility: hidden !important; }
 
-/* Hide scrollbar for cinematic feel during loading */
+/* Hide scrollbars on all devices — keeps scroll working, hides the bar */
+*::-webkit-scrollbar { display: none; }
+* { scrollbar-width: none; }
+
 .no-scroll {
   overflow: hidden;
 }
