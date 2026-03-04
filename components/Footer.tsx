@@ -75,7 +75,7 @@ export const Footer: React.FC<FooterProps> = ({ lang, onNavigate, onAdminLogin }
               {t.description}
             </p>
             <div className="flex gap-4">
-              <a href="https://www.instagram.com/maxios.co.il" target="_blank" rel="noopener noreferrer" className="w-10 h-10 border border-white/20 flex items-center justify-center text-white/50 hover:text-orange-500 hover:border-orange-500 transition-all" aria-label="Instagram">
+              <a href="https://www.instagram.com/maxios.il?igsh=MWlscmx5Y3ExaW9ibg==" target="_blank" rel="noopener noreferrer" className="w-10 h-10 border border-white/20 flex items-center justify-center text-white/50 hover:text-orange-500 hover:border-orange-500 transition-all" aria-label="Instagram">
                 <Instagram size={18} />
               </a>
               <a href="https://www.facebook.com/maxios.co.il" target="_blank" rel="noopener noreferrer" className="w-10 h-10 border border-white/20 flex items-center justify-center text-white/50 hover:text-orange-500 hover:border-orange-500 transition-all" aria-label="Facebook">
