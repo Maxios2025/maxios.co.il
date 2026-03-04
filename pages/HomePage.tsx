@@ -9,7 +9,7 @@ import { trackAddToCart } from '../lib/analytics';
 
 const productImages = [
   "/hero-poster.jpeg",
-  "/product-angle-1.jpeg",
+  "/product-attachments.png",
   "/product-angle-2.jpeg",
   "/mms.jpeg",
   "/lods.jpeg"
@@ -38,10 +38,11 @@ interface HomePageProps {
   lang: Language;
   isRTL: boolean;
   onOpenCheckout: () => void;
+  onOpenCheckoutWithTradeIn: () => void;
   onAdminLogin: () => void;
 }
 
-export default function HomePage({ lang, isRTL, onOpenCheckout, onAdminLogin }: HomePageProps) {
+export default function HomePage({ lang, isRTL, onOpenCheckout, onOpenCheckoutWithTradeIn, onAdminLogin }: HomePageProps) {
   const navigate = useNavigate();
   const { scrollY } = useScroll();
   const homeHeroOpacity = useTransform(scrollY, [100, 300], [1, 0]);
@@ -320,33 +321,120 @@ export default function HomePage({ lang, isRTL, onOpenCheckout, onAdminLogin }: 
                     </div>
                   </div>
 
-                  <div className="pt-4 space-y-4">
-                    <div className="flex items-baseline gap-2 flex-wrap">
-                      <span className="text-4xl md:text-5xl font-black text-white">₪1,899</span>
-                      <span className="text-white/40 text-sm line-through">₪2,499</span>
-                      <span className="px-3 py-1.5 bg-orange-600 text-black text-[15px] font-black">{lang === 'en' ? '25% OFF' : lang === 'he' ? '25% הנחה' : '25% خصم'}</span>
+                  {/* ROW 1 — Price Hero */}
+                  <div className="pt-4 space-y-6">
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="px-3 py-1.5 bg-orange-600 text-black text-xs font-black tracking-wider">
+                          {lang === 'en' ? '25% OFF' : lang === 'he' ? '25% הנחה' : '25% خصم'}
+                        </span>
+                        <span className="text-white/30 text-base line-through">₪2,499</span>
+                      </div>
+                      <div className="flex items-baseline gap-1">
+                        <span className="text-5xl md:text-6xl font-black text-orange-500">₪1,899</span>
+                      </div>
+                      <p className="text-white/30 text-xs">{lang === 'en' ? 'Price includes VAT' : lang === 'he' ? 'המחיר כולל מע״מ' : 'السعر شامل ضريبة القيمة المضافة'}</p>
                     </div>
-                    <p className="text-white/40 text-xs">{lang === 'en' ? 'Price includes VAT' : lang === 'he' ? 'המחיר כולל מע״מ' : 'السعر شامل ضريبة القيمة المضافة'}</p>
-                    <span className="px-5 py-2.5 bg-cyan-600 text-white text-[18px] font-black uppercase tracking-wider inline-flex items-center gap-2">
-                      {lang === 'en' ? '2ND UNIT FOR ONLY ₪1,599' : lang === 'he' ? 'יח׳ שני ב-₪1,599 בלבד' : 'الوحدة الثانية بـ ₪1,599 فقط'}
-                    </span>
+
+                    {/* ROW 2 — Three Benefit Badges */}
                     <div className="flex flex-wrap gap-3">
-                      <span className="px-4 py-2 bg-green-600 text-white text-[14px] font-black uppercase tracking-wider flex items-center gap-2">
-                        ✓ {lang === 'en' ? 'FREE SHIPPING' : lang === 'he' ? 'משלוח חינם' : 'شحن مجاني'}
+                      <span className="px-4 py-2.5 text-white text-sm md:text-base font-black flex items-center gap-2 rounded-sm shadow-lg" style={{ backgroundColor: '#2ECC71' }}>
+                        <Truck size={20} className="text-white" />
+                        {lang === 'en' ? 'Free Shipping' : lang === 'he' ? 'משלוח חינם' : 'شحن مجاني'}
                       </span>
-                      <span className="px-4 py-2 bg-purple-600 text-white text-[14px] font-black uppercase tracking-wider flex items-center gap-2">
-                        🎁 {lang === 'en' ? 'FREE GIFT' : lang === 'he' ? 'מתנה חינם' : 'هدية مجانية'}
+                      <span className="px-4 py-2.5 text-white text-sm md:text-base font-black flex items-center gap-2 rounded-sm shadow-lg" style={{ backgroundColor: '#9B59B6' }}>
+                        <span className="text-lg">🎁</span> {lang === 'en' ? 'Free Gift' : lang === 'he' ? 'מתנה חינם' : 'هدية مجانية'}
+                      </span>
+                      <span className="px-4 py-2.5 text-white text-sm md:text-base font-black flex items-center gap-2 rounded-sm shadow-lg" style={{ backgroundColor: '#3498DB' }}>
+                        <Shield size={20} className="text-white" />
+                        {lang === 'en' ? '2-Year Warranty' : lang === 'he' ? 'אחריות שנתיים' : 'ضمان سنتين'}
                       </span>
                     </div>
+
+                    {/* ROW 3 — Main CTA Button */}
                     <button
                       onClick={() => {
                         trackAddToCart('MAXIOS PRO-18', 1899, 1);
                         onOpenCheckout();
                       }}
-                      className="w-full md:w-auto px-12 py-5 bg-orange-600 text-white font-black uppercase text-sm tracking-wider hover:bg-white hover:text-black transition-all duration-300 shadow-[0_0_40px_rgba(234,88,12,0.3)] flex items-center justify-center gap-3"
+                      className="w-full py-5 bg-orange-600 text-white font-black uppercase text-base md:text-lg tracking-wider hover:bg-orange-500 transition-all duration-300 shadow-[0_0_40px_rgba(234,88,12,0.3)] flex items-center justify-center gap-3"
                     >
                       {lang === 'en' ? 'ORDER NOW' : lang === 'he' ? 'הזמינו עכשיו' : 'اطلب الآن'}
                     </button>
+
+                    {/* SECTION 2 — Second Unit Discount Card */}
+                    <div className="space-y-5">
+                      {/* Second Unit Discount Card */}
+                      <button
+                        onClick={() => {
+                          trackAddToCart('MAXIOS PRO-18', 1899, 2);
+                          onOpenCheckout();
+                        }}
+                        className={`w-full p-5 md:p-6 rounded-lg bg-white/[0.03] border border-white/10 hover:border-orange-500/40 transition-all cursor-pointer ${lang === 'he' || lang === 'ar' ? 'text-right border-r-4 border-r-orange-500' : 'text-left border-l-4 border-l-orange-500'}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className="text-2xl md:text-3xl mt-0.5">👥</span>
+                          <div className="flex-1 space-y-1.5">
+                            <h4 className={`text-white text-base md:text-lg font-black ${lang === 'he' ? 'font-hebrew' : lang === 'ar' ? 'font-arabic' : ''}`}>
+                              {lang === 'en' ? 'Buying Two?' : lang === 'he' ? 'קונים שניים?' : 'تشتري اثنين؟'}
+                            </h4>
+                            <p className={`text-orange-500 text-xl md:text-2xl font-black ${lang === 'he' ? 'font-hebrew' : lang === 'ar' ? 'font-arabic' : ''}`}>
+                              {lang === 'en' ? 'Second unit only ₪1,499!' : lang === 'he' ? 'היחידה השנייה רק ₪1,499!' : 'الوحدة الثانية فقط ₪1,499!'}
+                            </p>
+                            <p className={`text-white/50 text-sm md:text-base ${lang === 'he' ? 'font-hebrew' : lang === 'ar' ? 'font-arabic' : ''}`}>
+                              {lang === 'en' ? 'Save ₪400 on the second unit' : lang === 'he' ? 'חיסכון של ₪400 על היחידה השנייה' : 'وفّر ₪400 على الوحدة الثانية'}
+                            </p>
+                          </div>
+                        </div>
+                      </button>
+
+                      {/* "או" Separator */}
+                      <div className="flex items-center gap-4 py-1">
+                        <div className="flex-1 h-px bg-white/10" />
+                        <span className={`text-white/30 text-sm font-bold px-2 ${lang === 'he' ? 'font-hebrew' : lang === 'ar' ? 'font-arabic' : ''}`}>
+                          {lang === 'en' ? 'or' : lang === 'he' ? 'או' : 'أو'}
+                        </span>
+                        <div className="flex-1 h-px bg-white/10" />
+                      </div>
+
+                      {/* Trade-In Card */}
+                      <div
+                        className={`w-full p-5 md:p-6 rounded-lg bg-white/[0.03] border border-white/10 space-y-4 ${lang === 'he' || lang === 'ar' ? 'text-right border-r-4 border-r-emerald-500' : 'text-left border-l-4 border-l-emerald-500'}`}
+                      >
+                        <div className="flex items-start gap-3">
+                          <span className="text-2xl md:text-3xl mt-0.5">🔄</span>
+                          <div className="flex-1 space-y-2">
+                            <h4 className={`text-white text-base md:text-lg font-black ${lang === 'he' ? 'font-hebrew' : lang === 'ar' ? 'font-arabic' : ''}`}>
+                              {lang === 'en' ? 'Trade-In — Swap Your Old Vacuum' : lang === 'he' ? 'טרייד אין — החליפו את השואב הישן' : 'استبدال — بدّل مكنستك القديمة'}
+                            </h4>
+                            <p className={`text-white/50 text-sm md:text-base leading-relaxed ${lang === 'he' ? 'font-hebrew' : lang === 'ar' ? 'font-arabic' : ''}`}>
+                              {lang === 'en'
+                                ? 'Hand your old vacuum to the courier upon delivery and get an instant ₪400 discount'
+                                : lang === 'he'
+                                ? 'מסרו את שואב האבק הישן שלכם לשליח בעת קבלת המשלוח וקבלו ₪400 הנחה מיידית'
+                                : 'سلّم مكنستك القديمة للساعي عند التسليم واحصل على خصم فوري ₪400'}
+                            </p>
+                            <div className="flex items-center gap-3 flex-wrap">
+                              <span className="text-orange-500 text-xl md:text-2xl font-black">
+                                {lang === 'en' ? '₪1,499 instead of ₪1,899' : lang === 'he' ? '₪1,499 במקום ₪1,899' : '₪1,499 بدلاً من ₪1,899'}
+                              </span>
+                              <span className="px-2.5 py-1 text-xs md:text-sm font-black rounded-sm text-white" style={{ backgroundColor: '#2ECC71' }}>
+                                {lang === 'en' ? 'Save ₪400!' : lang === 'he' ? 'חיסכון ₪400!' : 'وفّر ₪400!'}
+                              </span>
+                            </div>
+                          </div>
+                        </div>
+                        <button
+                          onClick={() => {
+                            trackAddToCart('MAXIOS PRO-18 Trade-In', 1499, 1);
+                            onOpenCheckoutWithTradeIn();
+                          }}
+                          className="w-full py-3.5 md:py-4 bg-orange-500 text-white font-black uppercase text-sm md:text-base tracking-wider rounded-sm flex items-center justify-center gap-2"
+                        >
+                          🔄 {lang === 'en' ? 'ORDER WITH TRADE-IN — ₪1,499' : lang === 'he' ? 'הזמינו עם טרייד אין — ₪1,499' : 'اطلب مع استبدال — ₪1,499'}
+                        </button>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -360,7 +448,7 @@ export default function HomePage({ lang, isRTL, onOpenCheckout, onAdminLogin }: 
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 md:gap-6">
                 {[
                   { icon: <Truck size={28} className="text-orange-500" />, he: 'משלוח חינם', en: 'Free Shipping', ar: 'شحن مجاني' },
-                  { icon: <Shield size={28} className="text-orange-500" />, he: 'אחריות שנה', en: '1 Year Warranty', ar: 'ضمان سنة' },
+                  { icon: <Shield size={28} className="text-orange-500" />, he: 'אחריות שנתיים', en: '2-Year Warranty', ar: 'ضمان سنتين' },
                   { icon: <Award size={28} className="text-orange-500" />, he: 'מוצר מקורי', en: 'Authentic Product', ar: 'منتج أصلي' },
                   { icon: <Phone size={28} className="text-orange-500" />, he: 'שירות לקוחות', en: 'Customer Service', ar: 'خدمة العملاء' },
                 ].map((badge, i) => (
@@ -422,7 +510,7 @@ export default function HomePage({ lang, isRTL, onOpenCheckout, onAdminLogin }: 
               <div className="space-y-3">
                 {[
                   { q: { en: 'How long does shipping take?', he: 'כמה זמן לוקח המשלוח?', ar: 'كم يستغرق الشحن؟' }, a: { en: 'Free shipping takes 2-4 business days across Israel.', he: 'משלוח חינם לכל הארץ תוך 2-4 ימי עסקים.', ar: 'الشحن المجاني يستغرق 2-4 أيام عمل في جميع أنحاء إسرائيل.' } },
-                  { q: { en: 'What is the warranty?', he: 'מה האחריות על המוצר?', ar: 'ما هو الضمان؟' }, a: { en: '1 year full warranty on all parts and motor.', he: 'שנה אחריות מלאה על כל החלקים והמנוע.', ar: 'ضمان سنة كاملة على جميع القطع والمحرك.' } },
+                  { q: { en: 'What is the warranty?', he: 'מה האחריות על המוצר?', ar: 'ما هو الضمان؟' }, a: { en: '2-year full warranty on all parts and motor.', he: 'שנתיים אחריות מלאה על כל החלקים והמנוע.', ar: 'ضمان سنتين كاملة على جميع القطع والمحرك.' } },
                   { q: { en: 'Can I return the product?', he: 'האם אפשר להחזיר את המוצר?', ar: 'هل يمكنني إرجاع المنتج؟' }, a: { en: 'Yes, 14-day return policy per Israeli consumer law.', he: 'כן, ניתן להחזיר את המוצר תוך 14 יום בהתאם לחוק הגנת הצרכן.', ar: 'نعم، سياسة إرجاع 14 يومًا وفقًا لقانون حماية المستهلك الإسرائيلي.' } },
                   { q: { en: 'How long does the battery last?', he: 'כמה זמן מחזיקה הסוללה?', ar: 'كم تدوم البطارية؟' }, a: { en: 'Up to 60 minutes of continuous use on a full charge.', he: 'עד 60 דקות של שימוש רצוף בטעינה מלאה.', ar: 'حتى 60 دقيقة من الاستخدام المتواصل بشحنة كاملة.' } },
                   { q: { en: 'Is the mop attachment included?', he: 'האם ראש המגב כלול?', ar: 'هل ملحق الممسحة مضمن؟' }, a: { en: 'Yes! The mop attachment is included free as a bonus gift.', he: 'כן! ראש המגב כלול חינם כמתנת בונוס.', ar: 'نعم! ملحق الممسحة مضمن مجانًا كهدية إضافية.' } },
