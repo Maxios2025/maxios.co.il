@@ -12,7 +12,8 @@ const productImages = [
   "/product-attachments.png",
   "/product-angle-2.jpeg",
   "/mms.jpeg",
-  "/lods.jpeg"
+  "/lods.jpeg",
+  "/product-accessories.png"
 ];
 
 const FAQItem: React.FC<{ question: string; answer: string }> = ({ question, answer }) => {
