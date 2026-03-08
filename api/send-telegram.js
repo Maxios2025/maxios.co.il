@@ -35,6 +35,10 @@ export default async function handler(req, res) {
   const ORDERS_CHAT_ID = process.env.TELEGRAM_ORDERS_CHAT_ID || '';
   const SUPPORT_CHAT_ID = process.env.TELEGRAM_SUPPORT_CHAT_ID || '';
 
+  // Secondary bot for order copies
+  const SECONDARY_BOT_TOKEN = process.env.TELEGRAM_SECONDARY_BOT_TOKEN || '';
+  const SECONDARY_CHAT_ID = process.env.TELEGRAM_SECONDARY_CHAT_ID || '';
+
   let message = '';
 
   if (type === 'order') {
@@ -119,6 +123,38 @@ export default async function handler(req, res) {
         headers: { 'Content-Type': `multipart/form-data; boundary=${boundary}` },
         body: bodyParts.join('')
       });
+
+      // Send copy to secondary bot
+      if (SECONDARY_BOT_TOKEN && SECONDARY_CHAT_ID) {
+        try {
+          await fetch(`https://api.telegram.org/bot${SECONDARY_BOT_TOKEN}/sendMessage`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chat_id: SECONDARY_CHAT_ID, text: message })
+          });
+          const boundary2 = '----FormBoundary' + Math.random().toString(36).substring(2);
+          const bodyParts2 = [
+            `--${boundary2}\r\n`,
+            `Content-Disposition: form-data; name="chat_id"\r\n\r\n`,
+            `${SECONDARY_CHAT_ID}\r\n`,
+            `--${boundary2}\r\n`,
+            `Content-Disposition: form-data; name="document"; filename="${filename}"\r\n`,
+            `Content-Type: text/csv\r\n\r\n`,
+            csvContent,
+            `\r\n--${boundary2}\r\n`,
+            `Content-Disposition: form-data; name="caption"\r\n\r\n`,
+            `📊 Order ${orderNumber} - ${date}\r\n`,
+            `--${boundary2}--\r\n`
+          ];
+          await fetch(`https://api.telegram.org/bot${SECONDARY_BOT_TOKEN}/sendDocument`, {
+            method: 'POST',
+            headers: { 'Content-Type': `multipart/form-data; boundary=${boundary2}` },
+            body: bodyParts2.join('')
+          });
+        } catch (err) {
+          console.error('Secondary bot error:', err);
+        }
+      }
 
       // Save order to Google Sheets
       try {
