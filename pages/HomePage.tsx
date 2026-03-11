@@ -317,7 +317,7 @@ export default function HomePage({ lang, isRTL, onOpenCheckout, onOpenCheckoutWi
                       <span className="text-xl font-black text-orange-500">PRO-18</span>
                     </div>
                     <div className="px-4 py-2 border border-white/10 bg-white/5">
-                      <span className="text-[10px] text-white/40 uppercase tracking-wider block">{lang === 'en' ? 'RUNTIME' : lang === 'he' ? 'זמן פعולה' : 'وقت التشغيل'}</span>
+                      <span className="text-[10px] text-white/40 uppercase tracking-wider block">{lang === 'en' ? 'RUNTIME' : lang === 'he' ? 'זמן פעולה' : 'وقت التشغيل'}</span>
                       <span className="text-xl font-black text-white">60min</span>
                     </div>
                   </div>
