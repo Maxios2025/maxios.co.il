@@ -5,6 +5,11 @@ declare global {
   interface Window {
     gtag?: (...args: any[]) => void;
     fbq?: (...args: any[]) => void;
+    ttq?: {
+      track: (event: string, params?: Record<string, any>) => void;
+      page: () => void;
+      identify: (params: Record<string, any>) => void;
+    };
   }
 }
 
@@ -22,6 +27,13 @@ export function trackAddToCart(productName: string, price: number, quantity: num
     value: price * quantity,
     currency: 'ILS',
   });
+  // TikTok Pixel
+  window.ttq?.track('AddToCart', {
+    content_name: productName,
+    content_type: 'product',
+    value: price * quantity,
+    currency: 'ILS',
+  });
 }
 
 export function trackBeginCheckout(total: number) {
@@ -30,6 +42,11 @@ export function trackBeginCheckout(total: number) {
     value: total,
   });
   window.fbq?.('track', 'InitiateCheckout', {
+    value: total,
+    currency: 'ILS',
+  });
+  // TikTok Pixel
+  window.ttq?.track('InitiateCheckout', {
     value: total,
     currency: 'ILS',
   });
@@ -43,6 +60,12 @@ export function trackPurchase(orderNumber: string, total: number, items: { name:
     items: items.map(i => ({ item_name: i.name, price: i.price, quantity: i.qty })),
   });
   window.fbq?.('track', 'Purchase', {
+    value: total,
+    currency: 'ILS',
+    content_type: 'product',
+  });
+  // TikTok Pixel
+  window.ttq?.track('CompletePayment', {
     value: total,
     currency: 'ILS',
     content_type: 'product',

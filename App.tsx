@@ -75,6 +75,7 @@ function AppContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
+  const [tradeIn, setTradeIn] = useState(false);
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -160,6 +161,14 @@ function AppContent() {
     setIsCheckoutOpen(true);
   }, []);
 
+  // Open checkout with trade-in pre-selected
+  const openCheckoutWithTradeIn = useCallback(() => {
+    setTradeIn(true);
+    savedScrollRef.current = window.scrollY;
+    document.body.style.overflow = 'hidden';
+    setIsCheckoutOpen(true);
+  }, []);
+
   // Close checkout: navigate home past the logo intro
   const closeCheckout = useCallback(() => {
     setIsCheckoutOpen(false);
@@ -231,6 +240,7 @@ function AppContent() {
               lang={lang}
               isRTL={isRTL}
               onOpenCheckout={openCheckout}
+              onOpenCheckoutWithTradeIn={openCheckoutWithTradeIn}
               onAdminLogin={() => { setAuthMode('login'); setIsAuthOpen(true); }}
             />
           } />
@@ -302,6 +312,8 @@ function AppContent() {
               lang={lang}
               promoCodes={promoCodes}
               onCheckout={closeCheckout}
+              tradeIn={tradeIn}
+              setTradeIn={setTradeIn}
             />
           </div>
           <div className="fixed bottom-6 left-1/2 -translate-x-1/2 text-center">

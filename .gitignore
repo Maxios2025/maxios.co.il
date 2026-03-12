@@ -33,3 +33,5 @@ nul
 
 # Large video originals (not needed for deployment)
 public/background-video-original.mp4
+
+.vercel

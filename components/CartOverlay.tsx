@@ -1,5 +1,6 @@
 
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ArrowRight, Check, Banknote, Truck, CreditCard, Ticket, X } from 'lucide-react';
 import { Language, PromoCode } from '../App';
@@ -21,6 +22,8 @@ interface CartOverlayProps {
   lang: Language;
   promoCodes: PromoCode[];
   onCheckout: () => void;
+  tradeIn: boolean;
+  setTradeIn: (v: boolean) => void;
 }
 
 // Fixed single product
@@ -28,26 +31,40 @@ const PRODUCT = {
   id: 'pro18',
   name: 'MAXIOS PRO-18',
   price: 1899,
-  priceSecond: 1599,
+  priceSecond: 1499,
   img: '/hero-poster.jpeg',
 };
 
-// Calculate total for qty: odd units = 1899, even units = 1599
-function calcSubtotal(qty: number) {
-  const pairs = Math.floor(qty / 2);
-  const remainder = qty % 2;
-  return pairs * (PRODUCT.price + PRODUCT.priceSecond) + remainder * PRODUCT.price;
+const TRADE_IN_DISCOUNT = 400;
+
+// Calculate subtotal from extra units array
+// Regular extras use pairs pricing with the first unit: 1st regular=₪1,899, 2nd=₪1,499, 3rd=₪1,899...
+// Trade-in extras are always at full price (₪1,899), discount applied separately
+function calcSubtotal(extraUnits: Array<'regular' | 'tradein'>) {
+  const regularExtras = extraUnits.filter(u => u === 'regular').length;
+  const tradeInExtras = extraUnits.filter(u => u === 'tradein').length;
+  // Pairs pricing among all regular units (first unit + regular extras)
+  const totalRegular = 1 + regularExtras;
+  const pairs = Math.floor(totalRegular / 2);
+  const remainder = totalRegular % 2;
+  const regularTotal = pairs * (PRODUCT.price + PRODUCT.priceSecond) + remainder * PRODUCT.price;
+  // Trade-in units at full price
+  return regularTotal + tradeInExtras * PRODUCT.price;
 }
 
-export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCheckout }) => {
+export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCheckout, tradeIn, setTradeIn }) => {
   // Step management - which step is currently being edited
   const [activeStep, setActiveStep] = useState<number>(1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [orderComplete, setOrderComplete] = useState(false);
   const [placedOrderNumber, setPlacedOrderNumber] = useState("");
 
-  // Quantity
-  const [qty, setQty] = useState(1);
+  // Extra units beyond the first — tracks type of each added unit
+  const [extraUnits, setExtraUnits] = useState<Array<'regular' | 'tradein'>>([]);
+  const qty = 1 + extraUnits.length;
+  const tradeInExtraCount = extraUnits.filter(u => u === 'tradein').length;
+  // Show the popup to choose unit type when clicking +
+  const [showUnitChoice, setShowUnitChoice] = useState(false);
 
   // Customer info
   const [customerName, setCustomerName] = useState("");
@@ -57,9 +74,14 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
   const [customerStreet, setCustomerStreet] = useState("");
   const [customerZip, setCustomerZip] = useState("");
 
-  // Payment method — COD only for now
-  const [paymentMethod] = useState<'cod'>('cod');
+  // Payment method
+  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'card'>('cod');
   const [orderError, setOrderError] = useState('');
+
+  // Cardcom iframe state
+  const [cardcomUrl, setCardcomUrl] = useState<string | null>(null);
+  const [cardcomLoading, setCardcomLoading] = useState(false);
+  const [cardcomError, setCardcomError] = useState('');
 
   // Promo
   const [promoInput, setPromoInput] = useState("");
@@ -214,9 +236,12 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
     setPromoInput("");
   };
 
-  const subtotal = calcSubtotal(qty);
+  const subtotal = calcSubtotal(extraUnits);
+  // Trade-in counts: first unit if tradeIn toggle is on + extra units chosen as trade-in via popup
+  const tradeInCount = (tradeIn ? 1 : 0) + Math.min(tradeInExtraCount, qty - 1);
+  const tradeInTotal = TRADE_IN_DISCOUNT * tradeInCount;
   const discountAmount = appliedPromo ? (subtotal * appliedPromo.percent / 100) : 0;
-  const total = subtotal - discountAmount;
+  const total = subtotal - tradeInTotal - discountAmount;
 
   const isEmailValid = customerEmail.trim() === '' || (customerEmail.includes('@') && !customerEmail.includes(' '));
   const isStep1Complete = customerName.trim() !== "" && customerPhone.replace(/\D/g, '').length === 10 && phoneVerified && isEmailValid;
@@ -245,6 +270,8 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
         },
         items: [{ id: PRODUCT.id, name: PRODUCT.name, qty, price: subtotal }],
         subtotal: subtotal.toFixed(2),
+        tradeIn: tradeIn,
+        tradeInDiscount: tradeIn ? tradeInTotal : 0,
         discount: appliedPromo ? discountAmount.toFixed(2) : '0',
         promoCode: appliedPromo?.code || null,
         total: total.toFixed(2),
@@ -262,6 +289,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
 
       // Send Telegram notification to orders group
       const itemsList = `• ${PRODUCT.name} x${qty} - ₪${subtotal}`;
+      const tradeInLine = tradeIn ? `\n🔄 Trade-In: -₪${tradeInTotal} (${tradeInCount} unit${tradeInCount > 1 ? 's' : ''})` : '';
       const telegramPayload = {
         type: 'order',
         data: {
@@ -272,9 +300,10 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
           address: customerStreet,
           city: customerCity,
           zip: customerZip,
-          items: itemsList,
+          items: itemsList + tradeInLine,
           total: total.toFixed(0),
-          paymentMethod: paymentMethod === 'cod' ? '💵 Cash on Delivery' : '💳 Credit Card'
+          paymentMethod: paymentMethod === 'card' ? '💳 Credit Card' : '💵 Cash on Delivery',
+          tradeIn: tradeIn
         }
       };
       fetch('/api/send-telegram', {
@@ -286,7 +315,9 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
       // Send order confirmation email to customer
       const orderItemsHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;border-bottom:1px solid #1e1e1e;"><tr><td width="70" valign="top" style="padding:12px 0 16px;"><img src="https://maxios.co.il${PRODUCT.img}" alt="${escapeHtml(PRODUCT.name)}" width="60" height="60" style="display:block;width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid #2a2a2a;" /></td><td valign="top" style="padding:12px 16px 16px;"><p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">${escapeHtml(PRODUCT.name)}</p><p style="margin:0;font-size:12px;color:#888888;font-family:Arial,Helvetica,sans-serif;">כמות: ${qty}</p></td><td valign="top" align="left" style="padding:12px 0 16px;"><p style="margin:0;font-size:16px;font-weight:900;color:#ea580c;font-family:Arial,Helvetica,sans-serif;">&#8362;${subtotal}</p></td></tr></table>`;
 
+      const tradeInRow = tradeIn ? `<tr><td style="padding:14px 0;font-size:14px;color:#22c55e;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">🔄 הנחת טרייד אין</td><td align="left" style="padding:14px 0;font-size:14px;color:#22c55e;font-weight:bold;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">-&#8362;${tradeInTotal}</td></tr>` : '';
       const discountRow = appliedPromo ? `<tr><td style="padding:14px 0;font-size:14px;color:#22c55e;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">הנחה (${appliedPromo.code} - ${appliedPromo.percent}%)</td><td align="left" style="padding:14px 0;font-size:14px;color:#22c55e;font-weight:bold;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">-&#8362;${discountAmount.toFixed(0)}</td></tr>` : '';
+      const tradeInNote = tradeIn ? `<tr><td colspan="2" style="padding:14px 0;font-size:13px;color:#ea580c;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">📦 נא למסור את השואב הישן לשליח בעת קבלת המשלוח</td></tr>` : '';
       const paymentLabel = paymentMethod === 'cod' ? 'תשלום במסירה' : 'כרטיס אשראי';
       const safeCustomerName = escapeHtml(customerName);
       const shippingAddress = escapeHtml(`${customerStreet}, ${customerCity} ${customerZip}`);
@@ -312,9 +343,9 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
 
 <tr><td style="padding:0 30px 16px;">${orderItemsHtml}</td></tr>
 
-<tr><td style="padding:0 30px 8px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:14px 0;font-size:14px;color:#888888;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">סכום ביניים</td><td align="left" style="padding:14px 0;font-size:14px;color:#ffffff;font-weight:bold;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">&#8362;${subtotal.toFixed(0)}</td></tr>${discountRow}<tr><td style="padding:14px 0;font-size:14px;color:#888888;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">משלוח</td><td align="left" style="padding:14px 0;font-size:14px;color:#22c55e;font-weight:bold;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">חינם</td></tr><tr><td style="padding:20px 0 8px;font-size:16px;font-weight:900;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">סה״כ:</td><td align="left" style="padding:20px 0 8px;font-size:24px;font-weight:900;color:#ea580c;font-family:Arial,Helvetica,sans-serif;">&#8362;${total.toFixed(0)}</td></tr></table></td></tr>
+<tr><td style="padding:0 30px 8px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="padding:14px 0;font-size:14px;color:#888888;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">סכום ביניים</td><td align="left" style="padding:14px 0;font-size:14px;color:#ffffff;font-weight:bold;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">&#8362;${subtotal.toFixed(0)}</td></tr>${tradeInRow}${discountRow}<tr><td style="padding:14px 0;font-size:14px;color:#888888;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">משלוח</td><td align="left" style="padding:14px 0;font-size:14px;color:#22c55e;font-weight:bold;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">חינם</td></tr><tr><td style="padding:20px 0 8px;font-size:16px;font-weight:900;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">סה״כ:</td><td align="left" style="padding:20px 0 8px;font-size:24px;font-weight:900;color:#ea580c;font-family:Arial,Helvetica,sans-serif;">&#8362;${total.toFixed(0)}</td></tr></table></td></tr>
 
-<tr><td style="padding:8px 30px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1e1e1e;border-radius:8px;"><tr><td style="padding:14px 20px;font-size:13px;color:#888888;font-family:Arial,Helvetica,sans-serif;">תשלום: <span style="color:#ffffff;font-weight:bold;">${paymentLabel}</span></td></tr></table></td></tr>
+<tr><td style="padding:8px 30px 40px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="background-color:#1e1e1e;border-radius:8px;"><tr><td style="padding:14px 20px;font-size:13px;color:#888888;font-family:Arial,Helvetica,sans-serif;">תשלום: <span style="color:#ffffff;font-weight:bold;">${paymentLabel}</span></td></tr></table></td></tr>${tradeInNote}
 
 <tr><td style="padding:0 60px;"><table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td style="border-top:1px solid #222222;font-size:0;line-height:0;">&nbsp;</td></tr></table></td></tr>
 
@@ -344,7 +375,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
             customer_email: customerEmail,
             customer_phone: customerPhone,
             shipping_address: `${customerStreet}, ${customerCity} ${customerZip}`,
-            order_items: `${PRODUCT.name} x${qty} - ₪${subtotal}`,
+            order_items: `${PRODUCT.name} x${qty} - ₪${subtotal}${tradeIn ? ` (טרייד אין: -₪${tradeInTotal})` : ''}`,
             order_total: total.toFixed(0),
             payment_method: paymentMethod === 'cod' ? 'תשלום במסירה' : 'כרטיס אשראי',
             message_html: fullEmailHtml
@@ -363,6 +394,104 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
       setOrderError(lang === 'en' ? 'An error occurred while placing your order. Please try again.' : lang === 'he' ? 'אירעה שגיאה בביצוע ההזמנה. אנא נסו שוב.' : 'حدث خطأ أثناء تقديم الطلب. يرجى المحاولة مرة أخرى.');
     }
   };
+
+  // Create Cardcom payment page when user selects card payment and reaches step 5
+  const handleCreateCardcomPayment = async () => {
+    if (!canPlaceOrder || cardcomLoading) return;
+    setCardcomLoading(true);
+    setCardcomError('');
+
+    // Generate order number
+    const orderNumber = `MX-${Date.now().toString(36).toUpperCase()}`;
+    setPlacedOrderNumber(orderNumber);
+
+    try {
+      const res = await fetch('/api/create-cardcom-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          amount: total,
+          orderId: orderNumber,
+          customerName,
+          customerEmail,
+          customerPhone,
+          customerCity,
+          customerStreet,
+          customerZip,
+          language: lang,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (data.url) {
+        setCardcomUrl(data.url);
+
+        // Save order to Firebase with 'pending_payment' status
+        const order = {
+          orderNumber,
+          customer: { name: customerName, email: customerEmail, phone: customerPhone, city: customerCity, street: customerStreet, zip: customerZip },
+          items: [{ id: PRODUCT.id, name: PRODUCT.name, qty, price: subtotal }],
+          subtotal: subtotal.toFixed(2),
+          tradeIn,
+          tradeInDiscount: tradeIn ? tradeInTotal : 0,
+          discount: appliedPromo ? discountAmount.toFixed(2) : '0',
+          promoCode: appliedPromo?.code || null,
+          total: total.toFixed(2),
+          paymentMethod: 'card',
+          status: 'pending_payment',
+          createdAt: new Date().toISOString(),
+        };
+        saveOrder(order as any).catch(err => console.error('Firebase save error:', err));
+      } else {
+        setCardcomError(data.error || (lang === 'en' ? 'Failed to create payment page' : lang === 'he' ? 'שגיאה ביצירת דף תשלום' : 'فشل في إنشاء صفحة الدفع'));
+      }
+    } catch (err) {
+      console.error('Cardcom error:', err);
+      setCardcomError(lang === 'en' ? 'Payment service unavailable. Please try again.' : lang === 'he' ? 'שירות התשלום לא זמין. נסו שוב.' : 'خدمة الدفع غير متوفرة. حاول مرة أخرى.');
+    } finally {
+      setCardcomLoading(false);
+    }
+  };
+
+  // Check URL params for Cardcom redirect result (success/error pages redirect back)
+  React.useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const paymentStatus = params.get('payment');
+    const returnedOrderId = params.get('orderId');
+
+    if (paymentStatus === 'success' && returnedOrderId) {
+      setPlacedOrderNumber(returnedOrderId);
+      trackPurchase(returnedOrderId, total, [{ name: PRODUCT.name, price: subtotal, qty }]);
+      setOrderComplete(true);
+
+      // Send Telegram notification
+      const itemsList = `• ${PRODUCT.name} x${qty} - ₪${subtotal}`;
+      const tradeInLine = tradeIn ? `\n🔄 Trade-In: -₪${tradeInTotal} (${tradeInCount} unit${tradeInCount > 1 ? 's' : ''})` : '';
+      fetch('/api/send-telegram', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          type: 'order',
+          data: {
+            orderNumber: returnedOrderId,
+            customerName, customerEmail, customerPhone,
+            address: customerStreet, city: customerCity, zip: customerZip,
+            items: itemsList + tradeInLine,
+            total: total.toFixed(0),
+            paymentMethod: '💳 Credit Card (Cardcom)',
+            tradeIn,
+          },
+        }),
+      }).catch(err => console.error('Telegram error:', err));
+
+      // Clean URL params
+      window.history.replaceState({}, '', window.location.pathname);
+    } else if (paymentStatus === 'error') {
+      setCardcomError(lang === 'en' ? 'Payment failed. Please try again.' : lang === 'he' ? 'התשלום נכשל. נסו שוב.' : 'فشل الدفع. حاول مرة أخرى.');
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+  }, []);
 
   const t = {
     en: {
@@ -581,6 +710,13 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
             {lang === 'en' ? 'Save your order number' : lang === 'he' ? 'שמרו את מספר ההזמנה' : 'احفظ رقم الطلب'}
           </p>
         </div>
+        {tradeIn && (
+          <div className="mt-6 p-4 border border-orange-500/30 bg-orange-500/10 max-w-md mx-auto">
+            <p className="text-orange-400 font-bold text-sm">
+              🔄 {lang === 'en' ? 'Please hand over your old vacuum cleaner to the courier upon delivery.' : lang === 'he' ? 'נא למסור את השואב הישן לשליח בעת קבלת המשלוח.' : 'يرجى تسليم المكنسة القديمة للساعي عند التسليم.'}
+            </p>
+          </div>
+        )}
       </div>
     );
   }
@@ -918,24 +1054,60 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
                   className="overflow-hidden"
                 >
                   <div className="px-4 md:px-6 pb-6 space-y-4">
-                    {/* COD - only available payment method */}
-                    <label className="flex items-center gap-4 p-4 border border-orange-500 bg-orange-500/10">
-                      <input type="radio" checked readOnly className="w-5 h-5 accent-orange-500" />
-                      <Banknote size={24} className="text-orange-500" />
+                    {/* Trade-In Toggle */}
+                    <div
+                      className={`p-4 border cursor-pointer transition-all ${tradeIn ? 'border-orange-500 bg-orange-500/10' : 'border-white/10 bg-white/[0.02] hover:border-white/20'}`}
+                      onClick={() => setTradeIn(!tradeIn)}
+                    >
+                      <div className="flex items-center justify-between gap-4">
+                        <div className="flex items-center gap-3 flex-1 min-w-0">
+                          <span className="text-xl">🔄</span>
+                          <div>
+                            <span className="text-white font-bold text-sm block">
+                              {lang === 'en' ? 'Trade-In — ₪400 Off' : lang === 'he' ? 'טרייד אין — ₪400 הנחה' : 'استبدال — خصم ₪400'}
+                            </span>
+                            <span className="text-white/50 text-xs">
+                              {lang === 'en' ? 'Hand over your old vacuum to the courier and get ₪400 off' : lang === 'he' ? 'מסרו את השואב הישן לשליח וקבלו ₪400 הנחה' : 'سلّم مكنستك القديمة للساعي واحصل على خصم ₪400'}
+                            </span>
+                          </div>
+                        </div>
+                        {/* Toggle switch */}
+                        <div className={`w-12 h-7 rounded-full flex-shrink-0 relative transition-colors ${tradeIn ? 'bg-orange-500' : 'bg-white/20'}`}>
+                          <div className={`absolute top-1 w-5 h-5 rounded-full bg-white shadow transition-all ${tradeIn ? 'right-1' : 'left-1'}`} />
+                        </div>
+                      </div>
+                      {tradeIn && (
+                        <p className="text-green-400 text-xs font-bold mt-2">
+                          ✓ {lang === 'en' ? `Trade-in discount: -₪${tradeInTotal}` : lang === 'he' ? `הנחת טרייד אין: -₪${tradeInTotal}` : `خصم الاستبدال: -₪${tradeInTotal}`}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* COD */}
+                    <label
+                      className={`flex items-center gap-4 p-4 border cursor-pointer transition-all ${paymentMethod === 'cod' ? 'border-orange-500 bg-orange-500/10' : 'border-white/10 hover:border-white/20'}`}
+                      onClick={() => { setPaymentMethod('cod'); setCardcomUrl(null); setCardcomError(''); }}
+                    >
+                      <input type="radio" checked={paymentMethod === 'cod'} readOnly className="w-5 h-5 accent-orange-500" />
+                      <Banknote size={24} className={paymentMethod === 'cod' ? 'text-orange-500' : 'text-white/40'} />
                       <div>
                         <span className="text-white font-medium block">{t.cod}</span>
                         <span className="text-white/50 text-sm">{t.codNote}</span>
                       </div>
                     </label>
 
-                    {/* Credit card coming soon */}
-                    <div className="flex items-center gap-4 p-4 border border-white/10 opacity-50">
-                      <CreditCard size={24} className="text-white/30" />
+                    {/* Credit Card via Cardcom */}
+                    <label
+                      className={`flex items-center gap-4 p-4 border cursor-pointer transition-all ${paymentMethod === 'card' ? 'border-orange-500 bg-orange-500/10' : 'border-white/10 hover:border-white/20'}`}
+                      onClick={() => setPaymentMethod('card')}
+                    >
+                      <input type="radio" checked={paymentMethod === 'card'} readOnly className="w-5 h-5 accent-orange-500" />
+                      <CreditCard size={24} className={paymentMethod === 'card' ? 'text-orange-500' : 'text-white/40'} />
                       <div>
-                        <span className="text-white/50 font-medium block">{t.card}</span>
-                        <span className="text-white/30 text-sm">{lang === 'en' ? 'Coming soon' : lang === 'he' ? 'בקרוב' : 'قريباً'}</span>
+                        <span className="text-white font-medium block">{t.card}</span>
+                        <span className="text-white/50 text-sm">{t.cardNote}</span>
                       </div>
-                    </div>
+                    </label>
 
                     {/* Promo Code Section */}
                     <div className="mt-6 p-4 border border-white/10 bg-white/[0.02]">
@@ -1016,26 +1188,81 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
                         {orderError}
                       </p>
                     )}
-                    <button
-                      onClick={handlePlaceOrder}
-                      disabled={!canPlaceOrder || isProcessing}
-                      className={`w-full py-4 font-black uppercase tracking-wider text-lg flex items-center justify-center gap-3 ${
-                        canPlaceOrder && !isProcessing
-                          ? 'bg-gradient-to-r from-orange-600 to-orange-500 text-white hover:from-orange-500 hover:to-orange-400 shadow-[0_0_30px_rgba(234,88,12,0.3)]'
-                          : 'bg-white/10 text-white/30 cursor-not-allowed'
-                      } transition-all`}
-                    >
-                      {isProcessing ? (
-                        <>
-                          <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }} className="w-5 h-5 border-2 border-current border-t-transparent rounded-full" />
-                          {t.processing}
-                        </>
-                      ) : (
-                        <>
-                          {t.placeOrder} <ArrowRight size={20} />
-                        </>
-                      )}
-                    </button>
+                    {cardcomError && (
+                      <p className="text-red-400 text-sm p-3 bg-red-500/10 border border-red-500/20">
+                        {cardcomError}
+                      </p>
+                    )}
+
+                    {paymentMethod === 'cod' ? (
+                      /* COD — Place Order button */
+                      <button
+                        onClick={handlePlaceOrder}
+                        disabled={!canPlaceOrder || isProcessing}
+                        className={`w-full py-4 font-black uppercase tracking-wider text-lg flex items-center justify-center gap-3 ${
+                          canPlaceOrder && !isProcessing
+                            ? 'bg-gradient-to-r from-orange-600 to-orange-500 text-white hover:from-orange-500 hover:to-orange-400 shadow-[0_0_30px_rgba(234,88,12,0.3)]'
+                            : 'bg-white/10 text-white/30 cursor-not-allowed'
+                        } transition-all`}
+                      >
+                        {isProcessing ? (
+                          <>
+                            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }} className="w-5 h-5 border-2 border-current border-t-transparent rounded-full" />
+                            {t.processing}
+                          </>
+                        ) : (
+                          <>
+                            {t.placeOrder} <ArrowRight size={20} />
+                          </>
+                        )}
+                      </button>
+                    ) : (
+                      /* Card — Cardcom iframe */
+                      <>
+                        {!cardcomUrl ? (
+                          <button
+                            onClick={handleCreateCardcomPayment}
+                            disabled={!canPlaceOrder || cardcomLoading}
+                            className={`w-full py-4 font-black uppercase tracking-wider text-lg flex items-center justify-center gap-3 ${
+                              canPlaceOrder && !cardcomLoading
+                                ? 'bg-gradient-to-r from-orange-600 to-orange-500 text-white hover:from-orange-500 hover:to-orange-400 shadow-[0_0_30px_rgba(234,88,12,0.3)]'
+                                : 'bg-white/10 text-white/30 cursor-not-allowed'
+                            } transition-all`}
+                          >
+                            {cardcomLoading ? (
+                              <>
+                                <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }} className="w-5 h-5 border-2 border-current border-t-transparent rounded-full" />
+                                {t.processing}
+                              </>
+                            ) : (
+                              <>
+                                <CreditCard size={20} />
+                                {lang === 'en' ? 'PAY WITH CARD' : lang === 'he' ? 'שלם בכרטיס' : 'ادفع بالبطاقة'}
+                              </>
+                            )}
+                          </button>
+                        ) : (
+                          <div className="space-y-3">
+                            <div className="flex items-center gap-2 text-white/50 text-sm">
+                              <CreditCard size={16} className="text-orange-500" />
+                              <span>{lang === 'en' ? 'Enter your card details below' : lang === 'he' ? 'הזינו את פרטי הכרטיס למטה' : 'أدخل بيانات البطاقة أدناه'}</span>
+                            </div>
+                            <iframe
+                              src={cardcomUrl}
+                              style={{ width: '100%', height: '480px', border: 'none', borderRadius: '8px', background: '#fff' }}
+                              title="Cardcom Payment"
+                              allow="payment"
+                            />
+                            <button
+                              onClick={() => { setCardcomUrl(null); setCardcomError(''); }}
+                              className="text-white/40 text-sm hover:text-white/60 transition-colors"
+                            >
+                              {lang === 'en' ? 'Cancel and go back' : lang === 'he' ? 'ביטול וחזרה' : 'إلغاء والعودة'}
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    )}
                   </div>
                 </motion.div>
               )}
@@ -1059,17 +1286,38 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
                 <div className="flex-1 min-w-0">
                   <p className="text-white font-medium text-sm truncate">{PRODUCT.name}</p>
                   <div className="flex items-center gap-2 mt-2">
-                    <button onClick={() => setQty(q => Math.max(1, q - 1))} className="w-7 h-7 border border-white/20 text-white/60 hover:border-orange-500 hover:text-orange-500 flex items-center justify-center transition-colors text-sm">−</button>
+                    <button onClick={() => { if (extraUnits.length > 0) setExtraUnits(prev => prev.slice(0, -1)); }} className="w-7 h-7 border border-white/20 text-white/60 hover:border-orange-500 hover:text-orange-500 flex items-center justify-center transition-colors text-sm">−</button>
                     <span className="text-white text-sm font-bold w-6 text-center">{qty}</span>
-                    <button onClick={() => setQty(q => q + 1)} className="w-7 h-7 border border-white/20 text-white/60 hover:border-orange-500 hover:text-orange-500 flex items-center justify-center transition-colors text-sm">+</button>
+                    <button onClick={() => {
+                      const lastType = extraUnits[extraUnits.length - 1];
+                      // First extra (adding 2nd unit) or last was trade-in → show choice
+                      if (extraUnits.length === 0 || lastType === 'tradein') {
+                        setShowUnitChoice(true);
+                      } else {
+                        // Last was regular → auto-add regular (pairs pricing)
+                        setExtraUnits(prev => [...prev, 'regular']);
+                      }
+                    }} className="w-7 h-7 border border-white/20 text-white/60 hover:border-orange-500 hover:text-orange-500 flex items-center justify-center transition-colors text-sm">+</button>
                   </div>
                 </div>
                 <div className="text-right">
                   <p className="text-white font-bold">₪{PRODUCT.price.toLocaleString()}</p>
                   {qty >= 2 && (
-                    <p className="text-orange-400 text-xs mt-1">{lang === 'en' ? '2nd unit' : lang === 'he' ? 'יח׳ שני' : 'الوحدة الثانية'}: ₪{PRODUCT.priceSecond.toLocaleString()}</p>
+                    <div className="mt-1 space-y-0.5">
+                      {tradeInExtraCount > 0 && (
+                        <p className="text-green-400 text-xs">
+                          {tradeInExtraCount}x 🔄 ₪{PRODUCT.price.toLocaleString()}
+                        </p>
+                      )}
+                      {(qty - 1 - tradeInExtraCount) > 0 && (
+                        <p className="text-orange-400 text-xs">
+                          {qty - 1 - tradeInExtraCount}x ₪{PRODUCT.priceSecond.toLocaleString()}
+                        </p>
+                      )}
+                    </div>
                   )}
                 </div>
+
               </div>
             </div>
 
@@ -1079,6 +1327,12 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
                 <span className="text-white/60">{t.subtotal}</span>
                 <span className="text-white">₪{subtotal.toFixed(0)}</span>
               </div>
+              {tradeInCount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span className="text-green-400">🔄 {lang === 'en' ? `Trade-in (${tradeInCount})` : lang === 'he' ? `טרייד אין (${tradeInCount})` : `استبدال (${tradeInCount})`}</span>
+                  <span className="text-green-400">-₪{tradeInTotal}</span>
+                </div>
+              )}
               {appliedPromo && (
                 <div className="flex justify-between text-sm">
                   <span className="text-green-400">{lang === 'en' ? 'Discount' : lang === 'he' ? 'הנחה' : 'خصم'}</span>
@@ -1097,6 +1351,38 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
           </div>
         </div>
       </div>
+
+      {/* Unit choice popup — rendered via portal on document.body so it's truly fixed on mobile */}
+      {showUnitChoice && createPortal(
+        <div style={{ position: 'fixed', inset: 0, zIndex: 99999, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }} onClick={() => setShowUnitChoice(false)}>
+          <div className="bg-zinc-900 border border-white/20 rounded-xl shadow-2xl p-5 w-[300px] space-y-3 mx-4" onClick={e => e.stopPropagation()}>
+            <p className={`text-white text-base font-bold mb-3 ${lang === 'he' ? 'font-hebrew text-right' : lang === 'ar' ? 'font-arabic text-right' : ''}`}>
+              {lang === 'en' ? 'Add unit:' : lang === 'he' ? 'הוספת יחידה:' : 'إضافة وحدة:'}
+            </p>
+            <button
+              onClick={() => { setExtraUnits(prev => [...prev, 'regular']); setShowUnitChoice(false); }}
+              className={`w-full p-4 border border-white/10 hover:border-orange-500/50 bg-white/[0.03] rounded-lg transition-all ${lang === 'he' ? 'font-hebrew text-right' : lang === 'ar' ? 'font-arabic text-right' : 'text-left'}`}
+            >
+              <p className="text-white text-base font-bold">{lang === 'en' ? 'Regular — ₪1,499' : lang === 'he' ? 'רגיל — ₪1,499' : 'عادي — ₪1,499'}</p>
+              <p className="text-white/40 text-sm mt-0.5">{lang === 'en' ? 'Multi-unit discount' : lang === 'he' ? 'הנחת כמות' : 'خصم الكمية'}</p>
+            </button>
+            <button
+              onClick={() => { setExtraUnits(prev => [...prev, 'tradein']); setShowUnitChoice(false); }}
+              className={`w-full p-4 border border-white/10 hover:border-orange-500/50 bg-white/[0.03] rounded-lg transition-all ${lang === 'he' ? 'font-hebrew text-right' : lang === 'ar' ? 'font-arabic text-right' : 'text-left'}`}
+            >
+              <p className="text-white text-base font-bold">🔄 {lang === 'en' ? 'Trade-In — ₪1,499' : lang === 'he' ? 'טרייד אין — ₪1,499' : 'استبدال — ₪1,499'}</p>
+              <p className="text-white/40 text-sm mt-0.5">{lang === 'en' ? 'Trade in an old vacuum' : lang === 'he' ? 'מסרו שואב ישן לשליח' : 'سلّم مكنسة قديمة للساعي'}</p>
+            </button>
+            <button
+              onClick={() => setShowUnitChoice(false)}
+              className="w-full text-white/30 text-sm text-center pt-2 hover:text-white/60 transition-colors"
+            >
+              {lang === 'en' ? 'Cancel' : lang === 'he' ? 'ביטול' : 'إلغاء'}
+            </button>
+          </div>
+        </div>,
+        document.body
+      )}
 
     </div>
   );
