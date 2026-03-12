@@ -33,44 +33,53 @@ export default async function handler(req, res) {
     // Map language code for Cardcom (he, en, ar)
     const cardcomLang = language === 'ar' ? 'ar' : language === 'en' ? 'en' : 'he';
 
-    const params = new URLSearchParams();
-    params.append('TerminalNumber', terminalNumber);
-    params.append('ApiName', apiName);
-    params.append('ApiPassword', apiPassword);
-    params.append('Amount', amount.toString());
-    params.append('Currency', '1'); // 1 = ILS
-    params.append('Operation', '1'); // 1 = Regular charge
-    params.append('Language', cardcomLang);
-    params.append('ProductName', `Maxios Order #${orderId}`);
-    params.append('ReturnValue', orderId);
-    params.append('MaxNumOfPayments', '12'); // Allow up to 12 installments
-    params.append('SuccessRedirectUrl', `${siteUrl}?payment=success&orderId=${orderId}`);
-    params.append('ErrorRedirectUrl', `${siteUrl}?payment=error&orderId=${orderId}`);
-    params.append('IndicatorUrl', `${siteUrl}/api/cardcom-webhook?orderId=${orderId}`);
-    params.append('IsIFrame', 'true'); // Optimized for iframe display
+    const successUrl = `${siteUrl}?payment=success&orderId=${orderId}`;
+    const errorUrl = `${siteUrl}?payment=error&orderId=${orderId}`;
+    const indicatorUrl = `${siteUrl}/api/cardcom-webhook?orderId=${orderId}`;
+
+    const bodyObj = {
+      TerminalNumber: parseInt(terminalNumber),
+      ApiName: apiName,
+      ApiPassword: apiPassword,
+      Amount: amount,
+      Currency: 1, // 1 = ILS
+      Operation: 1, // 1 = Regular charge
+      Language: cardcomLang,
+      ProductName: `Maxios Order #${orderId}`,
+      ReturnValue: orderId,
+      MaxNumOfPayments: 12,
+      SuccessRedirectUrl: successUrl,
+      ErrorRedirectUrl: errorUrl,
+      IndicatorUrl: indicatorUrl,
+      IsIFrame: true,
+    };
 
     // Customer details for invoice
-    if (customerName) params.append('InvoiceHead.CustName', customerName);
-    if (customerEmail) params.append('InvoiceHead.CustEmail', customerEmail);
-    if (customerPhone) params.append('InvoiceHead.CustMobilePH', customerPhone);
-    if (customerCity) params.append('InvoiceHead.CustCity', customerCity);
-    if (customerStreet) params.append('InvoiceHead.CustAddress', customerStreet);
-    if (customerZip) params.append('InvoiceHead.CustZipCode', customerZip);
-    if (customerEmail) params.append('InvoiceHead.SendByEmail', 'true');
+    const invoiceHead = {};
+    if (customerName) invoiceHead.CustName = customerName;
+    if (customerEmail) invoiceHead.CustEmail = customerEmail;
+    if (customerPhone) invoiceHead.CustMobilePH = customerPhone;
+    if (customerCity) invoiceHead.CustCity = customerCity;
+    if (customerStreet) invoiceHead.CustAddress = customerStreet;
+    if (customerZip) invoiceHead.CustZipCode = customerZip;
+    if (customerEmail) invoiceHead.SendByEmail = true;
+    bodyObj.InvoiceHead = invoiceHead;
 
     // Create tax invoice (101)
-    params.append('DocTypeToCreate', '101');
+    bodyObj.DocTypeToCreate = 101;
 
     // Invoice line item
-    params.append('InvoiceLines1.Description', `Maxios Order #${orderId}`);
-    params.append('InvoiceLines1.Price', amount.toString());
-    params.append('InvoiceLines1.Quantity', '1');
-    params.append('InvoiceLines1.IsVat', 'true');
+    bodyObj.InvoiceLines = [{
+      Description: `Maxios Order #${orderId}`,
+      Price: amount,
+      Quantity: 1,
+      IsVat: true,
+    }];
 
     const response = await fetch('https://secure.cardcom.solutions/api/v11/LowProfile/Create', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString(),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(bodyObj),
     });
 
     const data = await response.json();
