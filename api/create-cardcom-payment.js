@@ -28,72 +28,73 @@ export default async function handler(req, res) {
       return res.status(400).json({ error: 'Invalid amount' });
     }
 
-    const siteUrl = process.env.SITE_URL || 'https://maxios.co.il';
+    const siteUrl = 'https://maxios.co.il';
 
     // Map language code for Cardcom (he, en, ar)
     const cardcomLang = language === 'ar' ? 'ar' : language === 'en' ? 'en' : 'he';
 
-    const successUrl = `${siteUrl}?payment=success&orderId=${orderId}`;
-    const errorUrl = `${siteUrl}?payment=error&orderId=${orderId}`;
-    const indicatorUrl = `${siteUrl}/api/cardcom-webhook?orderId=${orderId}`;
-
-    const bodyObj = {
-      TerminalNumber: parseInt(terminalNumber),
-      ApiName: apiName,
-      ApiPassword: apiPassword,
-      Amount: amount,
-      Currency: 1, // 1 = ILS
-      Operation: 1, // 1 = Regular charge
-      Language: cardcomLang,
-      ProductName: `Maxios Order #${orderId}`,
-      ReturnValue: orderId,
-      MaxNumOfPayments: 12,
-      SuccessRedirectUrl: successUrl,
-      ErrorRedirectUrl: errorUrl,
-      IndicatorUrl: indicatorUrl,
-      IsIFrame: true,
-    };
+    const params = new URLSearchParams();
+    params.append('TerminalNumber', terminalNumber);
+    params.append('ApiName', apiName);
+    params.append('ApiPassword', apiPassword);
+    params.append('SumToBill', amount.toString());
+    params.append('CoinID', '1'); // 1 = ILS
+    params.append('Operation', '1'); // 1 = Regular charge
+    params.append('Language', cardcomLang);
+    params.append('ProductName', `Maxios Order #${orderId || 'N/A'}`);
+    params.append('ReturnValue', orderId || '');
+    params.append('MaxNumOfPayments', '12');
+    params.append('SuccessRedirectUrl', `${siteUrl}?payment=success&orderId=${orderId}`);
+    params.append('ErrorRedirectUrl', `${siteUrl}?payment=error&orderId=${orderId}`);
+    params.append('IndicatorUrl', `${siteUrl}/api/cardcom-webhook?orderId=${orderId}`);
+    params.append('IsIFrame', 'true');
 
     // Customer details for invoice
-    const invoiceHead = {};
-    if (customerName) invoiceHead.CustName = customerName;
-    if (customerEmail) invoiceHead.CustEmail = customerEmail;
-    if (customerPhone) invoiceHead.CustMobilePH = customerPhone;
-    if (customerCity) invoiceHead.CustCity = customerCity;
-    if (customerStreet) invoiceHead.CustAddress = customerStreet;
-    if (customerZip) invoiceHead.CustZipCode = customerZip;
-    if (customerEmail) invoiceHead.SendByEmail = true;
-    bodyObj.InvoiceHead = invoiceHead;
+    if (customerName) params.append('InvoiceHead.CustName', customerName);
+    if (customerEmail) params.append('InvoiceHead.CustEmail', customerEmail);
+    if (customerPhone) params.append('InvoiceHead.CustMobilePH', customerPhone);
+    if (customerCity) params.append('InvoiceHead.CustCity', customerCity);
+    if (customerStreet) params.append('InvoiceHead.CustAddress', customerStreet);
+    if (customerZip) params.append('InvoiceHead.CustZipCode', customerZip);
+    if (customerEmail) params.append('InvoiceHead.SendByEmail', 'true');
 
     // Create tax invoice (101)
-    bodyObj.DocTypeToCreate = 101;
+    params.append('DocTypeToCreate', '101');
 
     // Invoice line item
-    bodyObj.InvoiceLines = [{
-      Description: `Maxios Order #${orderId}`,
-      Price: amount,
-      Quantity: 1,
-      IsVat: true,
-    }];
+    params.append('InvoiceLines1.Description', `Maxios Order #${orderId || 'N/A'}`);
+    params.append('InvoiceLines1.Price', amount.toString());
+    params.append('InvoiceLines1.Quantity', '1');
+    params.append('InvoiceLines1.IsVat', 'true');
 
-    const response = await fetch('https://secure.cardcom.solutions/api/v11/LowProfile/Create', {
+    console.log('Cardcom request params:', Object.fromEntries(params.entries()));
+
+    const response = await fetch('https://secure.cardcom.solutions/Interface/LowProfile.aspx', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(bodyObj),
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: params.toString(),
     });
 
-    const data = await response.json();
+    const text = await response.text();
+    console.log('Cardcom raw response:', text);
 
-    if (String(data.ResponseCode) === '0') {
+    // Parse the response (Cardcom returns URL-encoded key=value pairs)
+    const result = {};
+    text.split('&').forEach(pair => {
+      const [key, ...vals] = pair.split('=');
+      result[decodeURIComponent(key)] = decodeURIComponent(vals.join('='));
+    });
+
+    if (result.ResponseCode === '0') {
       return res.status(200).json({
-        url: data.LowProfileUrl,
-        lowProfileId: data.LowProfileId,
+        url: result.url,
+        lowProfileId: result.lowprofilecode,
       });
     } else {
-      console.error('Cardcom error:', data);
+      console.error('Cardcom error:', result);
       return res.status(400).json({
-        error: data.Description || 'Failed to create payment page',
-        code: data.ResponseCode,
+        error: result.Description || 'Failed to create payment page',
+        code: result.ResponseCode,
       });
     }
   } catch (error) {
