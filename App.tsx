@@ -316,7 +316,7 @@ function AppContent() {
               setTradeIn={setTradeIn}
             />
           </div>
-          <div className="fixed bottom-6 left-1/2 -translate-x-1/2 text-center">
+          <div className="fixed top-4 left-1/2 -translate-x-1/2 text-center z-50">
             <p className="text-[10px] tracking-[0.5em] text-white/20 uppercase font-black">MAXIOS SECURE CHECKOUT</p>
           </div>
         </div>
