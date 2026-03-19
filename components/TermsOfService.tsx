@@ -39,6 +39,8 @@ export const TermsOfService: React.FC<TermsOfServiceProps> = ({ lang }) => {
           icon: Truck,
           title: "3. Shipping and Delivery",
           content: [
+            "Standard delivery within Israel: 2-4 business days from order confirmation. Please allow 1-3 additional business days for order preparation before shipping.",
+            "Shipping is free for all orders within Israel.",
             "Shipping times are estimates only and are not guaranteed. MAXIOS is not liable for delays caused by carriers or circumstances beyond our control.",
             "Risk of loss and title for products pass to you upon delivery to the carrier.",
             "You are responsible for providing accurate shipping information. Additional charges may apply for address corrections or redelivery.",
@@ -180,6 +182,8 @@ export const TermsOfService: React.FC<TermsOfServiceProps> = ({ lang }) => {
           icon: Truck,
           title: "3. משלוח ואספקה",
           content: [
+            "משלוח רגיל בתוך ישראל: 2-4 ימי עסקים מאישור ההזמנה. יש להוסיף 1-3 ימי עסקים נוספים להכנת ההזמנה לפני המשלוח.",
+            "המשלוח חינם לכל ההזמנות בתוך ישראל.",
             "זמני משלוח הם הערכות בלבד ואינם מובטחים. MAXIOS אינה אחראית לעיכובים שנגרמו על ידי חברות שליחויות או נסיבות שמחוץ לשליטתנו.",
             "הסיכון לאובדן והבעלות על המוצרים עוברים אליך עם המסירה לשליח.",
             "אתה אחראי לספק מידע משלוח מדויק. חיובים נוספים עשויים לחול על תיקוני כתובות או משלוח חוזר.",
@@ -321,6 +325,8 @@ export const TermsOfService: React.FC<TermsOfServiceProps> = ({ lang }) => {
           icon: Truck,
           title: "3. الشحن والتوصيل",
           content: [
+            "التوصيل العادي داخل إسرائيل: 2-4 أيام عمل من تأكيد الطلب. يرجى إضافة 1-3 أيام عمل إضافية لتجهيز الطلب قبل الشحن.",
+            "الشحن مجاني لجميع الطلبات داخل إسرائيل.",
             "أوقات الشحن هي تقديرات فقط وغير مضمونة. MAXIOS غير مسؤولة عن التأخيرات الناتجة عن شركات الشحن أو الظروف الخارجة عن سيطرتنا.",
             "ينتقل خطر الخسارة وملكية المنتجات إليك عند التسليم إلى شركة الشحن.",
             "أنت مسؤول عن تقديم معلومات شحن دقيقة. قد تنطبق رسوم إضافية على تصحيحات العنوان أو إعادة التسليم.",

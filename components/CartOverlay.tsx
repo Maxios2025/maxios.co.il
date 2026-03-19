@@ -83,6 +83,9 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
   const [cardcomLoading, setCardcomLoading] = useState(false);
   const [cardcomError, setCardcomError] = useState('');
 
+  // Terms agreement
+  const [agreedToTerms, setAgreedToTerms] = useState(false);
+
   // Promo
   const [promoInput, setPromoInput] = useState("");
   const [appliedPromo, setAppliedPromo] = useState<PromoCode | null>(null);
@@ -246,7 +249,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
   const isEmailValid = customerEmail.trim() === '' || (customerEmail.includes('@') && !customerEmail.includes(' '));
   const isStep1Complete = customerName.trim() !== "" && customerPhone.replace(/\D/g, '').length === 10 && phoneVerified && isEmailValid;
   const isStep2Complete = customerCity.trim() !== "" && customerStreet.trim() !== "" && customerZip.trim() !== "";
-  const canPlaceOrder = isStep1Complete && isStep2Complete;
+  const canPlaceOrder = isStep1Complete && isStep2Complete && agreedToTerms;
 
   const handlePlaceOrder = async () => {
     if (!canPlaceOrder) return;
@@ -556,7 +559,12 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
       otpSendFailed: "Failed to send code. Please try again.",
       otpVerifyFailed: "Verification failed. Please try again.",
       emailOptional: "(Optional)",
-      emailHelper: "If you provide an email, we'll send you an order confirmation"
+      emailHelper: "If you provide an email, we'll send you an order confirmation",
+      agreeTerms: "I have read and agree to the",
+      termsLink: "Terms & Conditions",
+      andThe: "and the",
+      privacyLink: "Privacy Policy",
+      mustAgreeTerms: "You must agree to the terms and conditions to continue"
     },
     he: {
       title: "סיום ההזמנה",
@@ -620,7 +628,12 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
       otpSendFailed: "שליחת הקוד נכשלה. נסה שוב.",
       otpVerifyFailed: "האימות נכשל. נסה שוב.",
       emailOptional: "(לא חובה)",
-      emailHelper: "אם תמלא/י מייל, נשלח לך אישור הזמנה"
+      emailHelper: "אם תמלא/י מייל, נשלח לך אישור הזמנה",
+      agreeTerms: "קראתי ואני מסכים/ה ל",
+      termsLink: "תקנון האתר",
+      andThe: "ול",
+      privacyLink: "מדיניות הפרטיות",
+      mustAgreeTerms: "יש לאשר את התקנון ומדיניות הפרטיות כדי להמשיך"
     },
     ar: {
       title: "إتمام الطلب",
@@ -684,7 +697,12 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
       otpSendFailed: "فشل إرسال الرمز. حاول مرة أخرى.",
       otpVerifyFailed: "فشل التحقق. حاول مرة أخرى.",
       emailOptional: "(اختياري)",
-      emailHelper: "إذا أدخلت بريدك الإلكتروني، سنرسل لك تأكيد الطلب"
+      emailHelper: "إذا أدخلت بريدك الإلكتروني، سنرسل لك تأكيد الطلب",
+      agreeTerms: "لقد قرأت وأوافق على",
+      termsLink: "الشروط والأحكام",
+      andThe: "و",
+      privacyLink: "سياسة الخصوصية",
+      mustAgreeTerms: "يجب الموافقة على الشروط والأحكام للمتابعة"
     }
   }[lang];
 
@@ -1192,6 +1210,25 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
                       <p className="text-red-400 text-sm p-3 bg-red-500/10 border border-red-500/20">
                         {cardcomError}
                       </p>
+                    )}
+
+                    {/* Terms Agreement Checkbox */}
+                    <label className={`flex items-start gap-3 p-4 border cursor-pointer transition-all ${agreedToTerms ? 'border-orange-500 bg-orange-500/10' : 'border-white/10 bg-white/[0.02] hover:border-white/20'} ${lang !== 'en' ? 'text-right' : ''}`}>
+                      <input
+                        type="checkbox"
+                        checked={agreedToTerms}
+                        onChange={(e) => setAgreedToTerms(e.target.checked)}
+                        className="w-5 h-5 mt-0.5 accent-orange-500 flex-shrink-0"
+                      />
+                      <span className="text-white/70 text-sm leading-relaxed">
+                        {t.agreeTerms}{' '}
+                        <a href="/terms" target="_blank" className="text-orange-500 underline hover:text-orange-400">{t.termsLink}</a>
+                        {' '}{t.andThe}{' '}
+                        <a href="/privacy" target="_blank" className="text-orange-500 underline hover:text-orange-400">{t.privacyLink}</a>
+                      </span>
+                    </label>
+                    {!agreedToTerms && activeStep === 5 && (
+                      <p className="text-orange-400/70 text-xs">{t.mustAgreeTerms}</p>
                     )}
 
                     {paymentMethod === 'cod' ? (

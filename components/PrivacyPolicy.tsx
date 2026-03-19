@@ -94,7 +94,7 @@ export const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ lang }) => {
       ],
       thirdParty: {
         title: "Third-Party Services",
-        content: "We may share information with trusted third-party service providers who assist us in operating our business, including payment processors, shipping partners, analytics providers, and marketing platforms. These partners are contractually obligated to protect your information and use it only for specified purposes."
+        content: "MAXIOS is committed to protecting your personal information and will never sell, rent, or share your personal data with third parties for their own marketing purposes. We may share limited information only with trusted service providers who are essential to operating our business (such as payment processors and shipping partners). These partners are contractually obligated to protect your information, use it only for the specific service they provide, and delete it when no longer needed."
       },
       children: {
         title: "Children's Privacy",
@@ -197,7 +197,7 @@ export const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ lang }) => {
       ],
       thirdParty: {
         title: "שירותי צד שלישי",
-        content: "אנו עשויים לשתף מידע עם ספקי שירות צד שלישי מהימנים המסייעים לנו בהפעלת העסק שלנו, כולל מעבדי תשלומים, שותפי משלוח, ספקי אנליטיקה ופלטפורמות שיווק. שותפים אלה מחויבים חוזית להגן על המידע שלך ולהשתמש בו רק למטרות מוגדרות."
+        content: "MAXIOS מתחייבת להגן על המידע האישי שלך ולעולם לא תמכור, תשכיר או תשתף את המידע האישי שלך עם צדדים שלישיים למטרות שיווק שלהם. אנו עשויים לשתף מידע מוגבל רק עם ספקי שירות מהימנים החיוניים להפעלת העסק שלנו (כגון מעבדי תשלומים ושותפי משלוח). שותפים אלה מחויבים חוזית להגן על המידע שלך, להשתמש בו רק לשירות הספציפי שהם מספקים, ולמחוק אותו כשאינו נדרש עוד."
       },
       children: {
         title: "פרטיות ילדים",
@@ -300,7 +300,7 @@ export const PrivacyPolicy: React.FC<PrivacyPolicyProps> = ({ lang }) => {
       ],
       thirdParty: {
         title: "خدمات الطرف الثالث",
-        content: "قد نشارك المعلومات مع مقدمي خدمات طرف ثالث موثوقين يساعدوننا في تشغيل أعمالنا، بما في ذلك معالجي الدفع وشركاء الشحن ومقدمي التحليلات ومنصات التسويق. هؤلاء الشركاء ملزمون تعاقديًا بحماية معلوماتك واستخدامها فقط لأغراض محددة."
+        content: "تلتزم MAXIOS بحماية معلوماتك الشخصية ولن تبيع أو تؤجر أو تشارك بياناتك الشخصية مع أطراف ثالثة لأغراضهم التسويقية. قد نشارك معلومات محدودة فقط مع مقدمي خدمات موثوقين ضروريين لتشغيل أعمالنا (مثل معالجي الدفع وشركاء الشحن). هؤلاء الشركاء ملزمون تعاقديًا بحماية معلوماتك واستخدامها فقط للخدمة المحددة التي يقدمونها وحذفها عند عدم الحاجة إليها."
       },
       children: {
         title: "خصوصية الأطفال",
