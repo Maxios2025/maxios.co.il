@@ -48,6 +48,11 @@ export default async function handler(req, res) {
     });
 
     return res.status(200).json({
+      credentials_check: {
+        terminal: terminalNumber,
+        apiName_first5: apiName.substring(0, 5) + '***',
+        apiPass_first5: apiPassword.substring(0, 5) + '***',
+      },
       httpStatus: response.status,
       rawResponse: text.substring(0, 500),
       parsed: result,
