@@ -39,11 +39,10 @@ interface HomePageProps {
   lang: Language;
   isRTL: boolean;
   onOpenCheckout: () => void;
-  onOpenCheckoutWithTradeIn: () => void;
   onAdminLogin: () => void;
 }
 
-export default function HomePage({ lang, isRTL, onOpenCheckout, onOpenCheckoutWithTradeIn, onAdminLogin }: HomePageProps) {
+export default function HomePage({ lang, isRTL, onOpenCheckout, onAdminLogin }: HomePageProps) {
   const navigate = useNavigate();
   const { scrollY } = useScroll();
   const homeHeroOpacity = useTransform(scrollY, [100, 300], [1, 0]);
@@ -332,7 +331,7 @@ export default function HomePage({ lang, isRTL, onOpenCheckout, onOpenCheckoutWi
                         <span className="text-white/30 text-base line-through">₪2,499</span>
                       </div>
                       <div className="flex items-baseline gap-1">
-                        <span className="text-5xl md:text-6xl font-black text-orange-500">₪1,899</span>
+                        <span className="text-5xl md:text-6xl font-black text-orange-500">₪999</span>
                       </div>
                       <p className="text-white/30 text-xs">{lang === 'en' ? 'Price includes VAT' : lang === 'he' ? 'המחיר כולל מע״מ' : 'السعر شامل ضريبة القيمة المضافة'}</p>
                     </div>
@@ -355,7 +354,7 @@ export default function HomePage({ lang, isRTL, onOpenCheckout, onOpenCheckoutWi
                     {/* ROW 3 — Main CTA Button */}
                     <button
                       onClick={() => {
-                        trackAddToCart('MAXIOS PRO-18', 1899, 1);
+                        trackAddToCart('MAXIOS PRO-18', 999, 1);
                         onOpenCheckout();
                       }}
                       className="w-full py-5 bg-orange-600 text-white font-black uppercase text-base md:text-lg tracking-wider hover:bg-orange-500 transition-all duration-300 shadow-[0_0_40px_rgba(234,88,12,0.3)] flex items-center justify-center gap-3"
@@ -363,79 +362,6 @@ export default function HomePage({ lang, isRTL, onOpenCheckout, onOpenCheckoutWi
                       {lang === 'en' ? 'ORDER NOW' : lang === 'he' ? 'הזמינו עכשיו' : 'اطلب الآن'}
                     </button>
 
-                    {/* SECTION 2 — Second Unit Discount Card */}
-                    <div className="space-y-5">
-                      {/* Second Unit Discount Card */}
-                      <button
-                        onClick={() => {
-                          trackAddToCart('MAXIOS PRO-18', 1899, 2);
-                          onOpenCheckout();
-                        }}
-                        className={`w-full p-5 md:p-6 rounded-lg bg-white/[0.03] border border-white/10 hover:border-orange-500/40 transition-all cursor-pointer ${lang === 'he' || lang === 'ar' ? 'text-right border-r-4 border-r-orange-500' : 'text-left border-l-4 border-l-orange-500'}`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <span className="text-2xl md:text-3xl mt-0.5">👥</span>
-                          <div className="flex-1 space-y-1.5">
-                            <h4 className={`text-white text-base md:text-lg font-black ${lang === 'he' ? 'font-hebrew' : lang === 'ar' ? 'font-arabic' : ''}`}>
-                              {lang === 'en' ? 'Buying Two?' : lang === 'he' ? 'קונים שניים?' : 'تشتري اثنين؟'}
-                            </h4>
-                            <p className={`text-orange-500 text-xl md:text-2xl font-black ${lang === 'he' ? 'font-hebrew' : lang === 'ar' ? 'font-arabic' : ''}`}>
-                              {lang === 'en' ? 'Second unit only ₪1,499!' : lang === 'he' ? 'היחידה השנייה רק ₪1,499!' : 'الوحدة الثانية فقط ₪1,499!'}
-                            </p>
-                            <p className={`text-white/50 text-sm md:text-base ${lang === 'he' ? 'font-hebrew' : lang === 'ar' ? 'font-arabic' : ''}`}>
-                              {lang === 'en' ? 'Save ₪400 on the second unit' : lang === 'he' ? 'חיסכון של ₪400 על היחידה השנייה' : 'وفّر ₪400 على الوحدة الثانية'}
-                            </p>
-                          </div>
-                        </div>
-                      </button>
-
-                      {/* "או" Separator */}
-                      <div className="flex items-center gap-4 py-1">
-                        <div className="flex-1 h-px bg-white/10" />
-                        <span className={`text-white/30 text-sm font-bold px-2 ${lang === 'he' ? 'font-hebrew' : lang === 'ar' ? 'font-arabic' : ''}`}>
-                          {lang === 'en' ? 'or' : lang === 'he' ? 'או' : 'أو'}
-                        </span>
-                        <div className="flex-1 h-px bg-white/10" />
-                      </div>
-
-                      {/* Trade-In Card */}
-                      <div
-                        className={`w-full p-5 md:p-6 rounded-lg bg-white/[0.03] border border-white/10 space-y-4 ${lang === 'he' || lang === 'ar' ? 'text-right border-r-4 border-r-emerald-500' : 'text-left border-l-4 border-l-emerald-500'}`}
-                      >
-                        <div className="flex items-start gap-3">
-                          <span className="text-2xl md:text-3xl mt-0.5">🔄</span>
-                          <div className="flex-1 space-y-2">
-                            <h4 className={`text-white text-base md:text-lg font-black ${lang === 'he' ? 'font-hebrew' : lang === 'ar' ? 'font-arabic' : ''}`}>
-                              {lang === 'en' ? 'Trade-In — Swap Your Old Vacuum' : lang === 'he' ? 'טרייד אין — החליפו את השואב הישן' : 'استبدال — بدّل مكنستك القديمة'}
-                            </h4>
-                            <p className={`text-white/50 text-sm md:text-base leading-relaxed ${lang === 'he' ? 'font-hebrew' : lang === 'ar' ? 'font-arabic' : ''}`}>
-                              {lang === 'en'
-                                ? 'Hand your old vacuum to the courier upon delivery and get an instant ₪400 discount'
-                                : lang === 'he'
-                                ? 'מסרו את שואב האבק הישן שלכם לשליח בעת קבלת המשלוח וקבלו ₪400 הנחה מיידית'
-                                : 'سلّم مكنستك القديمة للساعي عند التسليم واحصل على خصم فوري ₪400'}
-                            </p>
-                            <div className="flex items-center gap-3 flex-wrap">
-                              <span className="text-orange-500 text-xl md:text-2xl font-black">
-                                {lang === 'en' ? '₪1,499 instead of ₪1,899' : lang === 'he' ? '₪1,499 במקום ₪1,899' : '₪1,499 بدلاً من ₪1,899'}
-                              </span>
-                              <span className="px-2.5 py-1 text-xs md:text-sm font-black rounded-sm text-white" style={{ backgroundColor: '#2ECC71' }}>
-                                {lang === 'en' ? 'Save ₪400!' : lang === 'he' ? 'חיסכון ₪400!' : 'وفّر ₪400!'}
-                              </span>
-                            </div>
-                          </div>
-                        </div>
-                        <button
-                          onClick={() => {
-                            trackAddToCart('MAXIOS PRO-18 Trade-In', 1499, 1);
-                            onOpenCheckoutWithTradeIn();
-                          }}
-                          className="w-full py-3.5 md:py-4 bg-orange-500 text-white font-black uppercase text-sm md:text-base tracking-wider rounded-sm flex items-center justify-center gap-2"
-                        >
-                          🔄 {lang === 'en' ? 'ORDER WITH TRADE-IN — ₪1,499' : lang === 'he' ? 'הזמינו עם טרייד אין — ₪1,499' : 'اطلب مع استبدال — ₪1,499'}
-                        </button>
-                      </div>
-                    </div>
                   </div>
                 </div>
               </div>
