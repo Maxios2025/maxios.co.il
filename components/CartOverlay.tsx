@@ -270,11 +270,14 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
       const data = await res.json();
 
       if (!res.ok || !data.url) {
+        const detail = data.details ? ` (${data.details})` : '';
+        const code = data.code !== undefined ? ` [${data.code}]` : '';
         setOrderError(
-          lang === 'en' ? `Payment error: ${data.error || 'Please try again.'}` :
-          lang === 'he' ? `שגיאת תשלום: ${data.error || 'אנא נסה שוב.'}` :
-          `خطأ في الدفع: ${data.error || 'يرجى المحاولة مرة أخرى.'}`
+          lang === 'en' ? `Payment error: ${data.error || 'Please try again.'}${detail}${code}` :
+          lang === 'he' ? `שגיאת תשלום: ${data.error || 'אנא נסה שוב.'}${detail}${code}` :
+          `خطأ في الدفع: ${data.error || 'يرجى المحاولة مرة أخرى.'}${detail}${code}`
         );
+        console.error('CardCom error response:', data);
         setCardcomLoading(false);
         return;
       }

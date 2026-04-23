@@ -94,7 +94,8 @@ export default async function handler(req, res) {
     ApiName: CARDCOM_API_NAME,
     ApiPassword: CARDCOM_API_PASSWORD,
     ReturnUrl: `${SITE_URL}/payment-success?order=${encodeURIComponent(orderNumber)}`,
-    FailedUrl: `${SITE_URL}/payment-failed?order=${encodeURIComponent(orderNumber)}`,
+    SuccessRedirectUrl: `${SITE_URL}/payment-success?order=${encodeURIComponent(orderNumber)}`,
+    ErrorRedirectUrl: `${SITE_URL}/payment-failed?order=${encodeURIComponent(orderNumber)}`,
     WebHookUrl: `${SITE_URL}/api/cardcom-webhook?order=${encodeURIComponent(orderNumber)}`,
     Amount: parseFloat(amount),
     CoinID: 1, // 1 = ILS
@@ -138,20 +139,25 @@ export default async function handler(req, res) {
       return res.status(502).json({ error: 'Invalid response from payment gateway' });
     }
 
-    // CardCom returns ResponseCode 0 for success
-    if (cardcomData.ResponseCode !== 0) {
+    // CardCom returns ResponseCode 0 (or ReturnCode 0) for success
+    const responseCode = cardcomData.ResponseCode ?? cardcomData.ReturnCode ?? cardcomData.returnCode ?? -1;
+    console.log('CardCom full response:', JSON.stringify(cardcomData));
+
+    if (responseCode !== 0) {
       console.error('CardCom API error:', cardcomData);
       return res.status(502).json({
         error: 'Payment gateway rejected the request',
-        details: cardcomData.Description || 'Unknown error',
-        code: cardcomData.ResponseCode,
+        details: cardcomData.Description || cardcomData.Message || cardcomData.ErrorMessage || 'Unknown error',
+        code: responseCode,
+        raw: cardcomData, // full response for debugging
       });
     }
 
-    const { LowProfileCode, URL: paymentUrl } = cardcomData;
+    const LowProfileCode = cardcomData.LowProfileCode || cardcomData.LowProfileId || cardcomData.Code;
+    const paymentUrl = cardcomData.URL || cardcomData.Url || cardcomData.PaymentUrl;
 
     if (!paymentUrl) {
-      return res.status(502).json({ error: 'Payment gateway did not return a payment URL' });
+      return res.status(502).json({ error: 'Payment gateway did not return a payment URL', raw: cardcomData });
     }
 
     // Optionally pre-save order to Firestore (server-side, best-effort)
