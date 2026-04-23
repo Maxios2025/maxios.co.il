@@ -1,104 +1,202 @@
-// Vercel Serverless Function — Create Cardcom Low Profile payment page
+// CardCom Low Profile Payment Creation
+// Creates a hosted payment page and returns the URL to redirect the user to.
+// CardCom docs: https://kb.cardcom.solutions/
+
+const CARDCOM_TERMINAL = process.env.CARDCOM_TERMINAL_NUMBER || '';
+const CARDCOM_API_NAME = process.env.CARDCOM_API_NAME || '';
+const CARDCOM_API_PASSWORD = process.env.CARDCOM_API_PASSWORD || '';
+const FIREBASE_PROJECT_ID = process.env.VITE_FIREBASE_PROJECT_ID || '';
+const FIREBASE_API_KEY = process.env.VITE_FIREBASE_API_KEY || '';
+
+// Sandbox vs production
+const CARDCOM_BASE_URL = process.env.CARDCOM_SANDBOX === 'true'
+  ? 'https://sandbox.cardcom.solutions/api/v11'
+  : 'https://secure.cardcom.solutions/api/v11';
+
+const SITE_URL = process.env.SITE_URL || 'https://maxios.co.il';
+
+// Convert a flat/nested JS object to Firestore REST fields format
+function buildFirestoreFields(obj) {
+  const fields = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (value === null || value === undefined) {
+      fields[key] = { nullValue: null };
+    } else if (typeof value === 'string') {
+      fields[key] = { stringValue: value };
+    } else if (Number.isInteger(value)) {
+      fields[key] = { integerValue: value };
+    } else if (typeof value === 'number') {
+      fields[key] = { doubleValue: value };
+    } else if (typeof value === 'boolean') {
+      fields[key] = { booleanValue: value };
+    } else if (Array.isArray(value)) {
+      fields[key] = {
+        arrayValue: {
+          values: value.map(item =>
+            typeof item === 'object' && item !== null
+              ? { mapValue: { fields: buildFirestoreFields(item) } }
+              : { stringValue: String(item) }
+          )
+        }
+      };
+    } else if (typeof value === 'object') {
+      fields[key] = { mapValue: { fields: buildFirestoreFields(value) } };
+    }
+  }
+  return fields;
+}
 
 export default async function handler(req, res) {
   // CORS
   const origin = req.headers.origin || '';
-  const allowed = ['https://maxios.co.il', 'https://www.maxios.co.il', 'http://localhost:3000'];
+  const allowed = ['https://maxios.co.il', 'https://www.maxios.co.il', 'http://localhost:3000', 'http://localhost:5173'];
   if (allowed.includes(origin)) {
     res.setHeader('Access-Control-Allow-Origin', origin);
   }
   res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS');
   res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
-
   if (req.method === 'OPTIONS') return res.status(200).end();
   if (req.method !== 'POST') return res.status(405).json({ error: 'Method not allowed' });
 
-  const terminalNumber = process.env.CARDCOM_TERMINAL_NUMBER;
-  const apiName = process.env.CARDCOM_API_NAME;
-  const apiPassword = process.env.CARDCOM_API_PASSWORD;
+  if (!CARDCOM_TERMINAL || !CARDCOM_API_NAME || !CARDCOM_API_PASSWORD) {
+    console.error('CardCom credentials not configured');
+    return res.status(500).json({ error: 'Payment gateway not configured' });
+  }
 
-  if (!terminalNumber || !apiName || !apiPassword) {
-    return res.status(500).json({ error: 'Cardcom not configured' });
+  const {
+    orderNumber,
+    amount,
+    installments = 1,
+    customer = {},
+    address = {},
+    items = [],
+    subtotal,
+    discount,
+    promoCode,
+    total
+  } = req.body || {};
+
+  // Basic validation
+  if (!orderNumber || !amount || !customer.name || !customer.phone) {
+    return res.status(400).json({ error: 'Missing required fields: orderNumber, amount, customer.name, customer.phone' });
+  }
+
+  const maxPayments = Math.min(Math.max(parseInt(installments) || 1, 1), 12);
+
+  // Build product description
+  const productName = items.length > 0
+    ? items.map(i => `${i.name} x${i.qty}`).join(', ')
+    : 'MAXIOS PRO-18';
+
+  // CardCom CreateLowProfile payload
+  const cardcomPayload = {
+    TerminalNumber: parseInt(CARDCOM_TERMINAL),
+    ApiName: CARDCOM_API_NAME,
+    ApiPassword: CARDCOM_API_PASSWORD,
+    ReturnUrl: `${SITE_URL}/payment-success?order=${encodeURIComponent(orderNumber)}`,
+    FailedUrl: `${SITE_URL}/payment-failed?order=${encodeURIComponent(orderNumber)}`,
+    WebHookUrl: `${SITE_URL}/api/cardcom-webhook?order=${encodeURIComponent(orderNumber)}`,
+    Amount: parseFloat(amount),
+    CoinID: 1, // 1 = ILS
+    MaxPayments: maxPayments,
+    ProductName: productName,
+    Customer: {
+      Name: customer.name,
+      Email: customer.email || '',
+      Phone: customer.phone,
+    },
+    Lines: items.map(item => ({
+      Description: item.name,
+      Quantity: parseInt(item.qty) || 1,
+      Price: parseFloat(item.price) / (parseInt(item.qty) || 1),
+      IsTaxFree: false,
+    })),
+  };
+
+  // Add invoice (document) generation if customer has email
+  if (customer.email) {
+    cardcomPayload.Document = {
+      To: customer.name,
+      Email: customer.email,
+      Send: true,
+      DocumentType: 320, // 320 = Tax Invoice (חשבונית מס)
+    };
   }
 
   try {
-    const { amount, orderId, customerName, customerEmail, customerPhone, customerCity, customerStreet, customerZip, language } = req.body;
-
-    if (!amount || amount < 1) {
-      return res.status(400).json({ error: 'Invalid amount' });
-    }
-
-    const siteUrl = 'https://maxios.co.il';
-
-    // Map language code for Cardcom (he, en, ar)
-    const cardcomLang = language === 'ar' ? 'ar' : language === 'en' ? 'en' : 'he';
-
-    const params = new URLSearchParams();
-    params.append('TerminalNumber', terminalNumber);
-    params.append('ApiName', apiName);
-    params.append('ApiPassword', apiPassword);
-    params.append('SumToBill', amount.toString());
-    params.append('CoinID', '1'); // 1 = ILS
-    params.append('Operation', '1'); // 1 = Regular charge
-    params.append('Language', cardcomLang);
-    params.append('ProductName', `Maxios Order #${orderId || 'N/A'}`);
-    params.append('ReturnValue', orderId || '');
-    params.append('MaxNumOfPayments', '12');
-    params.append('SuccessRedirectUrl', `${siteUrl}?payment=success&orderId=${orderId}`);
-    params.append('ErrorRedirectUrl', `${siteUrl}?payment=error&orderId=${orderId}`);
-    params.append('IndicatorUrl', `${siteUrl}/api/cardcom-webhook?orderId=${orderId}`);
-    params.append('IsIFrame', 'true');
-
-    // Customer details for invoice
-    if (customerName) params.append('InvoiceHead.CustName', customerName);
-    if (customerEmail) params.append('InvoiceHead.CustEmail', customerEmail);
-    if (customerPhone) params.append('InvoiceHead.CustMobilePH', customerPhone);
-    if (customerCity) params.append('InvoiceHead.CustCity', customerCity);
-    if (customerStreet) params.append('InvoiceHead.CustAddress', customerStreet);
-    if (customerZip) params.append('InvoiceHead.CustZipCode', customerZip);
-    if (customerEmail) params.append('InvoiceHead.SendByEmail', 'true');
-
-    // Create tax invoice (101)
-    params.append('DocTypeToCreate', '101');
-
-    // Invoice line item
-    params.append('InvoiceLines1.Description', `Maxios Order #${orderId || 'N/A'}`);
-    params.append('InvoiceLines1.Price', amount.toString());
-    params.append('InvoiceLines1.Quantity', '1');
-    params.append('InvoiceLines1.IsVat', 'true');
-
-    console.log('Cardcom request params:', Object.fromEntries(params.entries()));
-
-    const response = await fetch('https://secure.cardcom.solutions/Interface/LowProfile.aspx', {
+    // Call CardCom API to create payment page
+    const cardcomRes = await fetch(`${CARDCOM_BASE_URL}/LowProfile/Create`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: params.toString(),
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(cardcomPayload),
     });
 
-    const text = await response.text();
-    console.log('Cardcom raw response:', text);
+    let cardcomData;
+    try {
+      cardcomData = await cardcomRes.json();
+    } catch {
+      return res.status(502).json({ error: 'Invalid response from payment gateway' });
+    }
 
-    // Parse the response (Cardcom returns URL-encoded key=value pairs)
-    const result = {};
-    text.split('&').forEach(pair => {
-      const [key, ...vals] = pair.split('=');
-      result[decodeURIComponent(key)] = decodeURIComponent(vals.join('='));
-    });
-
-    if (result.ResponseCode === '0') {
-      return res.status(200).json({
-        url: result.url,
-        lowProfileId: result.lowprofilecode,
-      });
-    } else {
-      console.error('Cardcom error:', result);
-      return res.status(400).json({
-        error: result.Description || 'Failed to create payment page',
-        code: result.ResponseCode,
+    // CardCom returns ResponseCode 0 for success
+    if (cardcomData.ResponseCode !== 0) {
+      console.error('CardCom API error:', cardcomData);
+      return res.status(502).json({
+        error: 'Payment gateway rejected the request',
+        details: cardcomData.Description || 'Unknown error',
+        code: cardcomData.ResponseCode,
       });
     }
+
+    const { LowProfileCode, URL: paymentUrl } = cardcomData;
+
+    if (!paymentUrl) {
+      return res.status(502).json({ error: 'Payment gateway did not return a payment URL' });
+    }
+
+    // Optionally pre-save order to Firestore (server-side, best-effort)
+    // The client also saves it via the Firebase SDK — this is a backup
+    if (FIREBASE_PROJECT_ID && FIREBASE_API_KEY) {
+      const orderRecord = {
+        orderNumber,
+        customer: {
+          name: customer.name,
+          email: customer.email || '',
+          phone: customer.phone,
+          city: address.city || '',
+          street: address.street || '',
+          zip: address.zip || '',
+        },
+        items,
+        subtotal: String(subtotal || amount),
+        discount: String(discount || 0),
+        promoCode: promoCode || '',
+        total: String(total || amount),
+        paymentMethod: `credit_card`,
+        installments: maxPayments,
+        status: 'pending_payment',
+        lowProfileCode: LowProfileCode,
+        createdAt: new Date().toISOString(),
+      };
+
+      // Best-effort — don't block the response if this fails
+      fetch(
+        `https://firestore.googleapis.com/v1/projects/${FIREBASE_PROJECT_ID}/databases/(default)/documents/orders?documentId=${encodeURIComponent(orderNumber)}&key=${FIREBASE_API_KEY}`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fields: buildFirestoreFields(orderRecord) }),
+        }
+      ).catch(err => console.error('Firestore pre-save failed (non-critical):', err.message));
+    }
+
+    return res.status(200).json({
+      url: paymentUrl,
+      lowProfileCode: LowProfileCode,
+      orderNumber,
+    });
   } catch (error) {
-    console.error('Cardcom payment error:', error);
-    return res.status(500).json({ error: 'Payment service unavailable' });
+    console.error('create-cardcom-payment error:', error);
+    return res.status(500).json({ error: 'Failed to create payment session. Please try again.' });
   }
 }

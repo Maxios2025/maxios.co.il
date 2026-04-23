@@ -20,6 +20,8 @@ const PrivacyPage = lazy(() => import('./pages/PrivacyPage'));
 const AboutPage = lazy(() => import('./pages/AboutPage'));
 const TermsPage = lazy(() => import('./pages/TermsPage'));
 const WarrantyPage = lazy(() => import('./pages/WarrantyPage'));
+const PaymentSuccessPage = lazy(() => import('./pages/PaymentSuccessPage'));
+const PaymentFailedPage = lazy(() => import('./pages/PaymentFailedPage'));
 
 export type Language = 'he' | 'en' | 'ar';
 export type ViewState = 'home' | 'contact' | 'support' | 'account' | 'admin' | 'privacy' | 'about' | 'terms' | 'warranty';
@@ -75,7 +77,7 @@ function AppContent() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [products, setProducts] = useState<Product[]>([]);
   const [isMobile, setIsMobile] = useState(() => typeof window !== 'undefined' && window.innerWidth < 768);
-  const [tradeIn, setTradeIn] = useState(false);
+
 
   const navigate = useNavigate();
   const location = useLocation();
@@ -161,13 +163,6 @@ function AppContent() {
     setIsCheckoutOpen(true);
   }, []);
 
-  // Open checkout with trade-in pre-selected
-  const openCheckoutWithTradeIn = useCallback(() => {
-    setTradeIn(true);
-    savedScrollRef.current = window.scrollY;
-    document.body.style.overflow = 'hidden';
-    setIsCheckoutOpen(true);
-  }, []);
 
   // Close checkout: navigate home past the logo intro
   const closeCheckout = useCallback(() => {
@@ -240,7 +235,6 @@ function AppContent() {
               lang={lang}
               isRTL={isRTL}
               onOpenCheckout={openCheckout}
-              onOpenCheckoutWithTradeIn={openCheckoutWithTradeIn}
               onAdminLogin={() => { setAuthMode('login'); setIsAuthOpen(true); }}
             />
           } />
@@ -264,6 +258,12 @@ function AppContent() {
           <Route path="/about" element={<AboutPage lang={lang} />} />
           <Route path="/terms" element={<TermsPage lang={lang} />} />
           <Route path="/warranty" element={<WarrantyPage lang={lang} />} />
+          <Route path="/payment-success" element={
+            <PaymentSuccessPage lang={lang} onGoHome={() => navigate('/')} />
+          } />
+          <Route path="/payment-failed" element={
+            <PaymentFailedPage lang={lang} onGoHome={() => navigate('/')} onRetry={openCheckout} />
+          } />
           <Route path="*" element={
             <div className="min-h-screen flex items-center justify-center px-6">
               <div className="text-center space-y-6">
@@ -312,8 +312,6 @@ function AppContent() {
               lang={lang}
               promoCodes={promoCodes}
               onCheckout={closeCheckout}
-              tradeIn={tradeIn}
-              setTradeIn={setTradeIn}
             />
           </div>
           <div className="fixed top-4 left-1/2 -translate-x-1/2 text-center z-50">

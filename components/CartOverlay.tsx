@@ -2,7 +2,7 @@
 import React, { useState } from 'react';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowRight, Check, Banknote, Truck, CreditCard, Ticket, X } from 'lucide-react';
+import { ArrowRight, Check, Banknote, Truck, Ticket, X } from 'lucide-react';
 import { Language, PromoCode } from '../App';
 import emailjs from '@emailjs/browser';
 import { saveOrder } from '../lib/firebase';
@@ -55,17 +55,15 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
   const [customerStreet, setCustomerStreet] = useState("");
   const [customerZip, setCustomerZip] = useState("");
 
-  // Payment method
-  const [paymentMethod, setPaymentMethod] = useState<'cod' | 'card'>('cod');
   const [orderError, setOrderError] = useState('');
-
-  // Cardcom iframe state
-  const [cardcomUrl, setCardcomUrl] = useState<string | null>(null);
-  const [cardcomLoading, setCardcomLoading] = useState(false);
-  const [cardcomError, setCardcomError] = useState('');
 
   // Terms agreement
   const [agreedToTerms, setAgreedToTerms] = useState(false);
+
+  // Payment method selection
+  const [paymentMethod, setPaymentMethod] = useState<'credit' | 'cod'>('credit');
+  const [installments, setInstallments] = useState(1);
+  const [cardcomLoading, setCardcomLoading] = useState(false);
 
   // Promo
   const [promoInput, setPromoInput] = useState("");
@@ -229,8 +227,79 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
   const isStep2Complete = customerCity.trim() !== "" && customerStreet.trim() !== "" && customerZip.trim() !== "";
   const canPlaceOrder = isStep1Complete && isStep2Complete && agreedToTerms;
 
+  const handleCardComPayment = async () => {
+    setCardcomLoading(true);
+    const currentOrderNumber = `MX-${Date.now().toString(36).toUpperCase()}`;
+    trackBeginCheckout(total);
+
+    try {
+      // Save order client-side as pending_payment first
+      const order = {
+        orderNumber: currentOrderNumber,
+        customer: { name: customerName, email: customerEmail, phone: customerPhone, city: customerCity, street: customerStreet, zip: customerZip },
+        items: [{ id: PRODUCT.id, name: PRODUCT.name, qty, price: subtotal }],
+        subtotal: subtotal.toFixed(2),
+        discount: appliedPromo ? discountAmount.toFixed(2) : '0',
+        promoCode: appliedPromo?.code || null,
+        total: total.toFixed(2),
+        paymentMethod: `credit_card`,
+        installments,
+        status: 'pending_payment',
+        createdAt: new Date().toISOString(),
+      };
+      saveOrder(order as any).catch(err => console.error('Firebase pre-save:', err));
+
+      // Create CardCom payment session
+      const res = await fetch('/api/create-cardcom-payment', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          orderNumber: currentOrderNumber,
+          amount: total,
+          installments,
+          customer: { name: customerName, email: customerEmail, phone: customerPhone },
+          address: { city: customerCity, street: customerStreet, zip: customerZip },
+          items: [{ name: PRODUCT.name, qty, price: subtotal }],
+          subtotal,
+          discount: discountAmount,
+          promoCode: appliedPromo?.code || null,
+          total,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok || !data.url) {
+        setOrderError(
+          lang === 'en' ? `Payment error: ${data.error || 'Please try again.'}` :
+          lang === 'he' ? `שגיאת תשלום: ${data.error || 'אנא נסה שוב.'}` :
+          `خطأ في الدفع: ${data.error || 'يرجى المحاولة مرة أخرى.'}`
+        );
+        setCardcomLoading(false);
+        return;
+      }
+
+      // Redirect to CardCom hosted payment page
+      window.location.href = data.url;
+    } catch (err) {
+      console.error('CardCom payment error:', err);
+      setOrderError(
+        lang === 'en' ? 'Failed to start payment. Please try again.' :
+        lang === 'he' ? 'אירעה שגיאה בתחילת התשלום. אנא נסה שוב.' :
+        'فشل بدء الدفع. يرجى المحاولة مرة أخرى.'
+      );
+      setCardcomLoading(false);
+    }
+  };
+
   const handlePlaceOrder = async () => {
     if (!canPlaceOrder) return;
+
+    if (paymentMethod === 'credit') {
+      await handleCardComPayment();
+      return;
+    }
+
     setIsProcessing(true);
     trackBeginCheckout(total);
 
@@ -254,7 +323,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
         discount: appliedPromo ? discountAmount.toFixed(2) : '0',
         promoCode: appliedPromo?.code || null,
         total: total.toFixed(2),
-        paymentMethod,
+        paymentMethod: 'cod',
         status: 'pending',
         createdAt: new Date().toISOString()
       };
@@ -280,7 +349,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
           zip: customerZip,
           items: itemsList,
           total: total.toFixed(0),
-          paymentMethod: paymentMethod === 'card' ? '💳 Credit Card' : '💵 Cash on Delivery',
+          paymentMethod: '💵 Cash on Delivery',
         }
       };
       fetch('/api/send-telegram', {
@@ -293,7 +362,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
       const orderItemsHtml = `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" style="margin-bottom:16px;border-bottom:1px solid #1e1e1e;"><tr><td width="70" valign="top" style="padding:12px 0 16px;"><img src="https://maxios.co.il${PRODUCT.img}" alt="${escapeHtml(PRODUCT.name)}" width="60" height="60" style="display:block;width:60px;height:60px;object-fit:cover;border-radius:8px;border:1px solid #2a2a2a;" /></td><td valign="top" style="padding:12px 16px 16px;"><p style="margin:0 0 4px;font-size:15px;font-weight:bold;color:#ffffff;font-family:Arial,Helvetica,sans-serif;">${escapeHtml(PRODUCT.name)}</p><p style="margin:0;font-size:12px;color:#888888;font-family:Arial,Helvetica,sans-serif;">כמות: ${qty}</p></td><td valign="top" align="left" style="padding:12px 0 16px;"><p style="margin:0;font-size:16px;font-weight:900;color:#ea580c;font-family:Arial,Helvetica,sans-serif;">&#8362;${subtotal}</p></td></tr></table>`;
 
       const discountRow = appliedPromo ? `<tr><td style="padding:14px 0;font-size:14px;color:#22c55e;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">הנחה (${appliedPromo.code} - ${appliedPromo.percent}%)</td><td align="left" style="padding:14px 0;font-size:14px;color:#22c55e;font-weight:bold;font-family:Arial,Helvetica,sans-serif;border-bottom:1px solid #1e1e1e;">-&#8362;${discountAmount.toFixed(0)}</td></tr>` : '';
-      const paymentLabel = paymentMethod === 'cod' ? 'תשלום במסירה' : 'כרטיס אשראי';
+      const paymentLabel = 'תשלום במסירה';
       const safeCustomerName = escapeHtml(customerName);
       const shippingAddress = escapeHtml(`${customerStreet}, ${customerCity} ${customerZip}`);
 
@@ -352,7 +421,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
             shipping_address: `${customerStreet}, ${customerCity} ${customerZip}`,
             order_items: `${PRODUCT.name} x${qty} - ₪${subtotal}`,
             order_total: total.toFixed(0),
-            payment_method: paymentMethod === 'cod' ? 'תשלום במסירה' : 'כרטיס אשראי',
+            payment_method: 'תשלום במסירה',
             message_html: fullEmailHtml
           },
           import.meta.env.VITE_EMAILJS_PUBLIC_KEY || ''
@@ -370,99 +439,6 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
     }
   };
 
-  // Create Cardcom payment page when user selects card payment and reaches step 5
-  const handleCreateCardcomPayment = async () => {
-    if (!canPlaceOrder || cardcomLoading) return;
-    setCardcomLoading(true);
-    setCardcomError('');
-
-    // Generate order number
-    const orderNumber = `MX-${Date.now().toString(36).toUpperCase()}`;
-    setPlacedOrderNumber(orderNumber);
-
-    try {
-      const res = await fetch('/api/create-cardcom-payment', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          amount: total,
-          orderId: orderNumber,
-          customerName,
-          customerEmail,
-          customerPhone,
-          customerCity,
-          customerStreet,
-          customerZip,
-          language: lang,
-        }),
-      });
-
-      const data = await res.json();
-
-      if (data.url) {
-        setCardcomUrl(data.url);
-
-        // Save order to Firebase with 'pending_payment' status
-        const order = {
-          orderNumber,
-          customer: { name: customerName, email: customerEmail, phone: customerPhone, city: customerCity, street: customerStreet, zip: customerZip },
-          items: [{ id: PRODUCT.id, name: PRODUCT.name, qty, price: subtotal }],
-          subtotal: subtotal.toFixed(2),
-          discount: appliedPromo ? discountAmount.toFixed(2) : '0',
-          promoCode: appliedPromo?.code || null,
-          total: total.toFixed(2),
-          paymentMethod: 'card',
-          status: 'pending_payment',
-          createdAt: new Date().toISOString(),
-        };
-        saveOrder(order as any).catch(err => console.error('Firebase save error:', err));
-      } else {
-        setCardcomError(data.error || (lang === 'en' ? 'Failed to create payment page' : lang === 'he' ? 'שגיאה ביצירת דף תשלום' : 'فشل في إنشاء صفحة الدفع'));
-      }
-    } catch (err) {
-      console.error('Cardcom error:', err);
-      setCardcomError(lang === 'en' ? 'Payment service unavailable. Please try again.' : lang === 'he' ? 'שירות התשלום לא זמין. נסו שוב.' : 'خدمة الدفع غير متوفرة. حاول مرة أخرى.');
-    } finally {
-      setCardcomLoading(false);
-    }
-  };
-
-  // Check URL params for Cardcom redirect result (success/error pages redirect back)
-  React.useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const paymentStatus = params.get('payment');
-    const returnedOrderId = params.get('orderId');
-
-    if (paymentStatus === 'success' && returnedOrderId) {
-      setPlacedOrderNumber(returnedOrderId);
-      trackPurchase(returnedOrderId, total, [{ name: PRODUCT.name, price: subtotal, qty }]);
-      setOrderComplete(true);
-
-      // Send Telegram notification
-      const itemsList = `• ${PRODUCT.name} x${qty} - ₪${subtotal}`;
-      fetch('/api/send-telegram', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          type: 'order',
-          data: {
-            orderNumber: returnedOrderId,
-            customerName, customerEmail, customerPhone,
-            address: customerStreet, city: customerCity, zip: customerZip,
-            items: itemsList,
-            total: total.toFixed(0),
-            paymentMethod: '💳 Credit Card (Cardcom)',
-          },
-        }),
-      }).catch(err => console.error('Telegram error:', err));
-
-      // Clean URL params
-      window.history.replaceState({}, '', window.location.pathname);
-    } else if (paymentStatus === 'error') {
-      setCardcomError(lang === 'en' ? 'Payment failed. Please try again.' : lang === 'he' ? 'התשלום נכשל. נסו שוב.' : 'فشل الدفع. حاول مرة أخرى.');
-      window.history.replaceState({}, '', window.location.pathname);
-    }
-  }, []);
 
   const t = {
     en: {
@@ -472,7 +448,6 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
       step3: "Delivery",
       step4: "Payment",
       step5: "Place Order",
-      cardInfo: "Card Information",
       name: "Full Name",
       email: "Email Address",
       phone: "Phone Number",
@@ -483,12 +458,6 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
       deliveryNote: "Please allow 1-3 additional business days for us to get your order ready.",
       cod: "Cash on Delivery",
       codNote: "Pay when your order arrives",
-      card: "Credit / Debit Card",
-      cardNote: "Pay securely with your card",
-      cardNumber: "Card Number",
-      cardExpiry: "Expiry Date",
-      cardCVV: "CVV",
-      cardHolder: "Cardholder Name",
       placeOrder: "PLACE ORDER",
       processing: "Processing...",
       edit: "Edit",
@@ -541,7 +510,6 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
       step3: "משלוח",
       step4: "תשלום",
       step5: "אישור הזמנה",
-      cardInfo: "פרטי כרטיס",
       name: "שם מלא",
       email: "כתובת אימייל",
       phone: "מספר טלפון",
@@ -552,12 +520,6 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
       deliveryNote: "אנא המתינו 1-3 ימי עסקים נוספים להכנת ההזמנה.",
       cod: "תשלום במסירה",
       codNote: "שלם כאשר ההזמנה מגיעה",
-      card: "כרטיס אשראי / דביט",
-      cardNote: "שלם בצורה מאובטחת עם הכרטיס שלך",
-      cardNumber: "מספר כרטיס",
-      cardExpiry: "תאריך תפוגה",
-      cardCVV: "CVV",
-      cardHolder: "שם בעל הכרטיס",
       placeOrder: "אשר הזמנה",
       processing: "מעבד...",
       edit: "ערוך",
@@ -610,7 +572,6 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
       step3: "التوصيل",
       step4: "الدفع",
       step5: "تأكيد الطلب",
-      cardInfo: "معلومات البطاقة",
       name: "الاسم الكامل",
       email: "البريد الإلكتروني",
       phone: "رقم الهاتف",
@@ -621,12 +582,6 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
       deliveryNote: "يرجى السماح بـ 1-3 أيام عمل إضافية لتجهيز طلبك.",
       cod: "الدفع عند التسليم",
       codNote: "ادفع عند وصول طلبك",
-      card: "بطاقة ائتمان / خصم",
-      cardNote: "ادفع بشكل آمن ببطاقتك",
-      cardNumber: "رقم البطاقة",
-      cardExpiry: "تاريخ الانتهاء",
-      cardCVV: "CVV",
-      cardHolder: "اسم حامل البطاقة",
       placeOrder: "تأكيد الطلب",
       processing: "جاري المعالجة...",
       edit: "تعديل",
@@ -1034,29 +989,89 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
                   className="overflow-hidden"
                 >
                   <div className="px-4 md:px-6 pb-6 space-y-4">
-                    {/* COD */}
+                    {/* Credit Card Option */}
                     <label
-                      className={`flex items-center gap-4 p-4 border cursor-pointer transition-all ${paymentMethod === 'cod' ? 'border-orange-500 bg-orange-500/10' : 'border-white/10 hover:border-white/20'}`}
-                      onClick={() => { setPaymentMethod('cod'); setCardcomUrl(null); setCardcomError(''); }}
+                      className={`flex items-start gap-4 p-4 border cursor-pointer transition-all ${
+                        paymentMethod === 'credit' ? 'border-orange-500 bg-orange-500/10' : 'border-white/10 bg-white/[0.02] hover:border-white/20'
+                      }`}
                     >
-                      <input type="radio" checked={paymentMethod === 'cod'} readOnly className="w-5 h-5 accent-orange-500" />
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        checked={paymentMethod === 'credit'}
+                        onChange={() => setPaymentMethod('credit')}
+                        className="w-5 h-5 mt-0.5 accent-orange-500 flex-shrink-0"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <span className="text-white font-medium">
+                            {lang === 'en' ? 'Credit / Debit Card' : lang === 'he' ? 'כרטיס אשראי / חיוב' : 'بطاقة ائتمان / خصم'}
+                          </span>
+                          {/* Card logos */}
+                          <div className="flex items-center gap-1.5">
+                            {['VISA', 'MC', 'AMEX', 'ISRACARD'].map(brand => (
+                              <span key={brand} className="px-1.5 py-0.5 bg-white/10 text-white/60 text-[9px] font-bold rounded border border-white/10 tracking-wider">{brand}</span>
+                            ))}
+                          </div>
+                        </div>
+                        <span className="text-white/50 text-sm block mt-0.5">
+                          {lang === 'en' ? 'Secure payment via CardCom (Verifone Israel)' :
+                           lang === 'he' ? 'תשלום מאובטח דרך קארדקום (Verifone ישראל)' :
+                           'دفع آمن عبر CardCom (Verifone إسرائيل)'}
+                        </span>
+
+                        {/* Installments selector — shown when credit card is selected */}
+                        {paymentMethod === 'credit' && (
+                          <div className="mt-4 space-y-2">
+                            <label className="text-white/50 text-xs uppercase tracking-wider block">
+                              {lang === 'en' ? 'Number of installments' : lang === 'he' ? 'מספר תשלומים' : 'عدد الأقساط'}
+                            </label>
+                            <select
+                              value={installments}
+                              onChange={e => setInstallments(parseInt(e.target.value))}
+                              className="w-full bg-black border border-white/20 p-2.5 text-white text-sm outline-none focus:border-orange-500 transition-colors appearance-none cursor-pointer"
+                              dir="ltr"
+                            >
+                              {[1,2,3,4,5,6,7,8,9,10,11,12].map(n => (
+                                <option key={n} value={n}>
+                                  {n === 1
+                                    ? (lang === 'en' ? '1 payment (full)' : lang === 'he' ? 'תשלום אחד (מלא)' : 'دفعة واحدة (كاملة)')
+                                    : (lang === 'en' ? `${n} monthly payments` : lang === 'he' ? `${n} תשלומים חודשיים` : `${n} دفعات شهرية`)}
+                                  {n > 1 ? ` — ₪${Math.ceil(total / n)}` : ''}
+                                </option>
+                              ))}
+                            </select>
+                            {installments > 1 && (
+                              <p className="text-orange-500/70 text-xs">
+                                {lang === 'en'
+                                  ? `₪${Math.ceil(total / installments)} × ${installments} months`
+                                  : lang === 'he'
+                                  ? `₪${Math.ceil(total / installments)} × ${installments} חודשים`
+                                  : `₪${Math.ceil(total / installments)} × ${installments} أشهر`}
+                              </p>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    </label>
+
+                    {/* COD Option */}
+                    <label
+                      className={`flex items-center gap-4 p-4 border cursor-pointer transition-all ${
+                        paymentMethod === 'cod' ? 'border-orange-500 bg-orange-500/10' : 'border-white/10 bg-white/[0.02] hover:border-white/20'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="paymentMethod"
+                        checked={paymentMethod === 'cod'}
+                        onChange={() => setPaymentMethod('cod')}
+                        className="w-5 h-5 accent-orange-500 flex-shrink-0"
+                      />
                       <Banknote size={24} className={paymentMethod === 'cod' ? 'text-orange-500' : 'text-white/40'} />
                       <div>
                         <span className="text-white font-medium block">{t.cod}</span>
                         <span className="text-white/50 text-sm">{t.codNote}</span>
-                      </div>
-                    </label>
-
-                    {/* Credit Card via Cardcom */}
-                    <label
-                      className={`flex items-center gap-4 p-4 border cursor-pointer transition-all ${paymentMethod === 'card' ? 'border-orange-500 bg-orange-500/10' : 'border-white/10 hover:border-white/20'}`}
-                      onClick={() => setPaymentMethod('card')}
-                    >
-                      <input type="radio" checked={paymentMethod === 'card'} readOnly className="w-5 h-5 accent-orange-500" />
-                      <CreditCard size={24} className={paymentMethod === 'card' ? 'text-orange-500' : 'text-white/40'} />
-                      <div>
-                        <span className="text-white font-medium block">{t.card}</span>
-                        <span className="text-white/50 text-sm">{t.cardNote}</span>
                       </div>
                     </label>
 
@@ -1121,7 +1136,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
                 <span className={`w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold ${activeStep === 5 ? 'bg-orange-500 text-black' : 'bg-white/10 text-white/40'}`}>
                   5
                 </span>
-                <span className="text-white font-semibold">{paymentMethod === 'card' ? t.cardInfo : t.step5}</span>
+                <span className="text-white font-semibold">{t.step5}</span>
               </div>
             </div>
 
@@ -1137,11 +1152,6 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
                     {orderError && (
                       <p className="text-red-400 text-sm p-3 bg-red-500/10 border border-red-500/20">
                         {orderError}
-                      </p>
-                    )}
-                    {cardcomError && (
-                      <p className="text-red-400 text-sm p-3 bg-red-500/10 border border-red-500/20">
-                        {cardcomError}
                       </p>
                     )}
 
@@ -1164,74 +1174,40 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
                       <p className="text-orange-400/70 text-xs">{t.mustAgreeTerms}</p>
                     )}
 
-                    {paymentMethod === 'cod' ? (
-                      /* COD — Place Order button */
-                      <button
-                        onClick={handlePlaceOrder}
-                        disabled={!canPlaceOrder || isProcessing}
-                        className={`w-full py-4 font-black uppercase tracking-wider text-lg flex items-center justify-center gap-3 ${
-                          canPlaceOrder && !isProcessing
-                            ? 'bg-gradient-to-r from-orange-600 to-orange-500 text-white hover:from-orange-500 hover:to-orange-400 shadow-[0_0_30px_rgba(234,88,12,0.3)]'
-                            : 'bg-white/10 text-white/30 cursor-not-allowed'
-                        } transition-all`}
-                      >
-                        {isProcessing ? (
-                          <>
-                            <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }} className="w-5 h-5 border-2 border-current border-t-transparent rounded-full" />
-                            {t.processing}
-                          </>
-                        ) : (
-                          <>
-                            {t.placeOrder} <ArrowRight size={20} />
-                          </>
-                        )}
-                      </button>
-                    ) : (
-                      /* Card — Cardcom iframe */
-                      <>
-                        {!cardcomUrl ? (
-                          <button
-                            onClick={handleCreateCardcomPayment}
-                            disabled={!canPlaceOrder || cardcomLoading}
-                            className={`w-full py-4 font-black uppercase tracking-wider text-lg flex items-center justify-center gap-3 ${
-                              canPlaceOrder && !cardcomLoading
-                                ? 'bg-gradient-to-r from-orange-600 to-orange-500 text-white hover:from-orange-500 hover:to-orange-400 shadow-[0_0_30px_rgba(234,88,12,0.3)]'
-                                : 'bg-white/10 text-white/30 cursor-not-allowed'
-                            } transition-all`}
-                          >
-                            {cardcomLoading ? (
-                              <>
-                                <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }} className="w-5 h-5 border-2 border-current border-t-transparent rounded-full" />
-                                {t.processing}
-                              </>
-                            ) : (
-                              <>
-                                <CreditCard size={20} />
-                                {lang === 'en' ? 'PAY WITH CARD' : lang === 'he' ? 'שלם בכרטיס' : 'ادفع بالبطاقة'}
-                              </>
-                            )}
-                          </button>
-                        ) : (
-                          <div className="space-y-3">
-                            <div className="flex items-center gap-2 text-white/50 text-sm">
-                              <CreditCard size={16} className="text-orange-500" />
-                              <span>{lang === 'en' ? 'Enter your card details below' : lang === 'he' ? 'הזינו את פרטי הכרטיס למטה' : 'أدخل بيانات البطاقة أدناه'}</span>
-                            </div>
-                            <iframe
-                              src={cardcomUrl}
-                              style={{ width: '100%', height: '480px', border: 'none', borderRadius: '8px', background: '#fff' }}
-                              title="Cardcom Payment"
-                              allow="payment"
-                            />
-                            <button
-                              onClick={() => { setCardcomUrl(null); setCardcomError(''); }}
-                              className="text-white/40 text-sm hover:text-white/60 transition-colors"
-                            >
-                              {lang === 'en' ? 'Cancel and go back' : lang === 'he' ? 'ביטול וחזרה' : 'إلغاء والعودة'}
-                            </button>
-                          </div>
-                        )}
-                      </>
+                    <button
+                      onClick={handlePlaceOrder}
+                      disabled={!canPlaceOrder || isProcessing || cardcomLoading}
+                      className={`w-full py-4 font-black uppercase tracking-wider text-lg flex items-center justify-center gap-3 ${
+                        canPlaceOrder && !isProcessing && !cardcomLoading
+                          ? 'bg-gradient-to-r from-orange-600 to-orange-500 text-white hover:from-orange-500 hover:to-orange-400 shadow-[0_0_30px_rgba(234,88,12,0.3)]'
+                          : 'bg-white/10 text-white/30 cursor-not-allowed'
+                      } transition-all`}
+                    >
+                      {(isProcessing || cardcomLoading) ? (
+                        <>
+                          <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }} className="w-5 h-5 border-2 border-current border-t-transparent rounded-full" />
+                          {t.processing}
+                        </>
+                      ) : paymentMethod === 'credit' ? (
+                        <>
+                          {lang === 'en' ? 'PAY SECURELY' : lang === 'he' ? 'שלם בצורה מאובטחת' : 'ادفع بأمان'}
+                          {' '}₪{total.toFixed(0)}
+                          {installments > 1 && (` / ${installments}`)}
+                          <ArrowRight size={20} />
+                        </>
+                      ) : (
+                        <>
+                          {t.placeOrder} <ArrowRight size={20} />
+                        </>
+                      )}
+                    </button>
+
+                    {paymentMethod === 'credit' && (
+                      <p className="text-white/25 text-xs text-center">
+                        {lang === 'en' ? 'You will be redirected to CardCom\'s secure payment page' :
+                         lang === 'he' ? 'תועבר לדף התשלום המאובטח של קארדקום' :
+                         'سيتم تحويلك إلى صفحة الدفع الآمنة من CardCom'}
+                      </p>
                     )}
                   </div>
                 </motion.div>

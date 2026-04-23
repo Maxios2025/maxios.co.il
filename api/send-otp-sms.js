@@ -29,8 +29,12 @@ module.exports = async function handler(req, res) {
 
   const phoneNumber = toE164(phone);
 
-  // Generate 6-digit OTP
-  const code = crypto.randomInt(100000, 999999).toString();
+  // Test phone bypass — no SMS sent, OTP is always 123456
+  const testPhones = (process.env.TEST_PHONE_NUMBERS || '').split(',').filter(Boolean);
+  const isTestPhone = testPhones.includes(phoneNumber);
+
+  // Generate 6-digit OTP (fixed for test phones)
+  const code = isTestPhone ? '123456' : crypto.randomInt(100000, 999999).toString();
 
   // Expiry: 5 minutes from now
   const expiresAt = Date.now() + 5 * 60 * 1000;
@@ -44,6 +48,11 @@ module.exports = async function handler(req, res) {
     .createHmac('sha256', secret)
     .update(`${phoneNumber}:${code}:${expiresAt}`)
     .digest('hex');
+
+  // Skip BulkGate for test phones
+  if (isTestPhone) {
+    return res.status(200).json({ success: true, hash, expiresAt });
+  }
 
   try {
     // Send SMS via BulkGate HTTP Simple API
