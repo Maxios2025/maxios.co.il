@@ -73,16 +73,6 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
   // Field validation errors
   const [fieldErrors, setFieldErrors] = useState({ name: '', email: '', phone: '' });
 
-  // Phone verification state
-  const [phoneVerified, setPhoneVerified] = useState(false);
-  const [otpSent, setOtpSent] = useState(false);
-  const [otpCode, setOtpCode] = useState('');
-  const [otpError, setOtpError] = useState('');
-  const [otpLoading, setOtpLoading] = useState(false);
-  const [resendCooldown, setResendCooldown] = useState(0);
-  const [otpHash, setOtpHash] = useState('');
-  const [otpExpiresAt, setOtpExpiresAt] = useState(0);
-
   // Validation handlers
   const handleNameChange = (value: string) => {
     const cleanName = value.replace(/[0-9]/g, '');
@@ -102,94 +92,6 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
     setCustomerPhone(digitsOnly);
     const hasError = digitsOnly.length > 0 && digitsOnly.length !== 10;
     setFieldErrors(prev => ({ ...prev, phone: hasError ? (lang === 'en' ? 'Phone must be 10 digits' : lang === 'he' ? 'הטלפון חייב להיות 10 ספרות' : 'يجب أن يكون رقم الهاتف 10 أرقام') : '' }));
-
-    // Reset verification state if phone number changes
-    if (phoneVerified || otpSent) {
-      setPhoneVerified(false);
-      setOtpSent(false);
-      setOtpCode('');
-      setOtpError('');
-    }
-  };
-
-  const handleSendOTP = async () => {
-    if (customerPhone.length !== 10 || otpLoading || resendCooldown > 0) return;
-
-    setOtpLoading(true);
-    setOtpError('');
-
-    try {
-      const res = await fetch('/api/send-otp-sms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: customerPhone }),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        if (res.status === 429) {
-          setOtpError(t.otpTooMany);
-        } else {
-          setOtpError(data.error || t.otpSendFailed);
-        }
-        return;
-      }
-
-      setOtpHash(data.hash);
-      setOtpExpiresAt(data.expiresAt);
-      setOtpSent(true);
-
-      // Start 60-second cooldown for resend
-      setResendCooldown(60);
-      const interval = setInterval(() => {
-        setResendCooldown(prev => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-    } catch (error: any) {
-      // API not available (local dev) — skip OTP, auto-verify phone
-      if (import.meta.env.DEV) {
-        console.warn('[DEV] OTP API unavailable — auto-verifying phone');
-        setPhoneVerified(true);
-        return;
-      }
-      console.error('OTP send error:', error);
-      setOtpError(t.otpSendFailed);
-    } finally {
-      setOtpLoading(false);
-    }
-  };
-
-  const handleVerifyOTP = async () => {
-    if (otpCode.length !== 6) return;
-
-    setOtpLoading(true);
-    setOtpError('');
-
-    try {
-      const res = await fetch('/api/verify-otp-sms', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ phone: customerPhone, code: otpCode, hash: otpHash, expiresAt: otpExpiresAt }),
-      });
-      const data = await res.json();
-
-      if (data.valid) {
-        setPhoneVerified(true);
-        setOtpError('');
-      } else {
-        setOtpError(data.error === 'Code expired' ? t.otpExpired : t.otpInvalidCode);
-      }
-    } catch (error: any) {
-      console.error('OTP verify error:', error);
-      setOtpError(t.otpVerifyFailed);
-    } finally {
-      setOtpLoading(false);
-    }
   };
 
   // Single product — no cart management needed
@@ -223,7 +125,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
   const total = subtotal - discountAmount;
 
   const isEmailValid = customerEmail.trim() === '' || (customerEmail.includes('@') && !customerEmail.includes(' '));
-  const isStep1Complete = customerName.trim() !== "" && customerPhone.replace(/\D/g, '').length === 10 && phoneVerified && isEmailValid;
+  const isStep1Complete = customerName.trim() !== "" && customerPhone.replace(/\D/g, '').length === 10 && isEmailValid;
   const isStep2Complete = customerCity.trim() !== "" && customerStreet.trim() !== "" && customerZip.trim() !== "";
   const canPlaceOrder = isStep1Complete && isStep2Complete && agreedToTerms;
 
@@ -482,22 +384,6 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
       remove: "Remove",
       maxQty: "Max 5 per product.",
       contactForMore: "Need more? Contact us",
-      sendCode: "Send Code",
-      sending: "Sending...",
-      verified: "Verified",
-      verify: "Verify",
-      verifying: "Verifying...",
-      otpSentTo: "Code sent to",
-      resendCode: "Resend Code",
-      resendIn: "Resend in",
-      changePhone: "Change number",
-      otpInvalidCode: "Invalid code. Please try again.",
-      otpExpired: "Code expired. Please request a new one.",
-      otpTooMany: "Too many attempts. Please try again later.",
-      otpInvalidPhone: "Invalid phone number format.",
-      otpCaptchaFailed: "Verification failed. Please try again.",
-      otpSendFailed: "Failed to send code. Please try again.",
-      otpVerifyFailed: "Verification failed. Please try again.",
       emailOptional: "(Optional)",
       emailHelper: "If you provide an email, we'll send you an order confirmation",
       agreeTerms: "I have read and agree to the",
@@ -544,22 +430,6 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
       remove: "הסר",
       maxQty: "מקסימום 5 ליחידה.",
       contactForMore: "צריך יותר? צור קשר",
-      sendCode: "שלח קוד",
-      sending: "שולח...",
-      verified: "אומת",
-      verify: "אמת",
-      verifying: "מאמת...",
-      otpSentTo: "הקוד נשלח ל",
-      resendCode: "שלח שוב",
-      resendIn: "שלח שוב בעוד",
-      changePhone: "שנה מספר",
-      otpInvalidCode: "קוד שגוי. נסה שוב.",
-      otpExpired: "הקוד פג תוקף. בקש קוד חדש.",
-      otpTooMany: "יותר מדי ניסיונות. נסה שוב מאוחר יותר.",
-      otpInvalidPhone: "מספר טלפון לא תקין.",
-      otpCaptchaFailed: "האימות נכשל. נסה שוב.",
-      otpSendFailed: "שליחת הקוד נכשלה. נסה שוב.",
-      otpVerifyFailed: "האימות נכשל. נסה שוב.",
       emailOptional: "(לא חובה)",
       emailHelper: "אם תמלא/י מייל, נשלח לך אישור הזמנה",
       agreeTerms: "קראתי ואני מסכים/ה ל",
@@ -606,22 +476,6 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
       remove: "إزالة",
       maxQty: "الحد الأقصى 5 لكل منتج.",
       contactForMore: "تحتاج المزيد؟ تواصل معنا",
-      sendCode: "إرسال الرمز",
-      sending: "جاري الإرسال...",
-      verified: "تم التحقق",
-      verify: "تحقق",
-      verifying: "جاري التحقق...",
-      otpSentTo: "تم إرسال الرمز إلى",
-      resendCode: "إعادة إرسال",
-      resendIn: "إعادة الإرسال خلال",
-      changePhone: "تغيير الرقم",
-      otpInvalidCode: "رمز غير صحيح. حاول مرة أخرى.",
-      otpExpired: "انتهت صلاحية الرمز. اطلب رمزاً جديداً.",
-      otpTooMany: "محاولات كثيرة. حاول مرة أخرى لاحقاً.",
-      otpInvalidPhone: "صيغة رقم الهاتف غير صحيحة.",
-      otpCaptchaFailed: "فشل التحقق. حاول مرة أخرى.",
-      otpSendFailed: "فشل إرسال الرمز. حاول مرة أخرى.",
-      otpVerifyFailed: "فشل التحقق. حاول مرة أخرى.",
       emailOptional: "(اختياري)",
       emailHelper: "إذا أدخلت بريدك الإلكتروني، سنرسل لك تأكيد الطلب",
       agreeTerms: "لقد قرأت وأوافق على",
@@ -705,103 +559,17 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
                     {/* Phone — required, first/most prominent */}
                     <div>
                       <label className="text-white/50 text-xs uppercase tracking-wider block mb-2">{t.phone}</label>
-                      <div className="flex gap-2">
-                        <input
-                          type="tel"
-                          inputMode="tel"
-                          value={customerPhone}
-                          onChange={(e) => handlePhoneChange(e.target.value)}
-                          className={`flex-1 bg-white/5 border ${
-                            fieldErrors.phone ? 'border-red-500' :
-                            phoneVerified ? 'border-green-500' : 'border-white/10'
-                          } p-3 text-white outline-none focus:border-orange-500 transition-colors`}
-                          placeholder="05X-XXXXXXX"
-                          dir="ltr"
-                          disabled={phoneVerified}
-                        />
-                        {!phoneVerified && !otpSent && (
-                          <button
-                            type="button"
-                            onClick={handleSendOTP}
-                            disabled={customerPhone.length !== 10 || otpLoading}
-                            className={`px-3 py-3 font-bold text-xs uppercase tracking-wider whitespace-nowrap ${
-                              customerPhone.length === 10 && !otpLoading
-                                ? 'bg-orange-500 text-white hover:bg-orange-600'
-                                : 'bg-white/10 text-white/30 cursor-not-allowed'
-                            } transition-colors`}
-                          >
-                            {otpLoading ? t.sending : t.sendCode}
-                          </button>
-                        )}
-                        {phoneVerified && (
-                          <div className="flex items-center gap-2 px-3 bg-green-500/10 border border-green-500/30">
-                            <Check size={14} className="text-green-400" />
-                            <span className="text-green-400 text-xs font-bold">{t.verified}</span>
-                          </div>
-                        )}
-                      </div>
+                      <input
+                        type="tel"
+                        inputMode="tel"
+                        value={customerPhone}
+                        onChange={(e) => handlePhoneChange(e.target.value)}
+                        className={`w-full bg-white/5 border ${fieldErrors.phone ? 'border-red-500' : 'border-white/10'} p-3 text-white outline-none focus:border-orange-500 transition-colors`}
+                        placeholder="05X-XXXXXXX"
+                        dir="ltr"
+                      />
                       {fieldErrors.phone && <p className="text-red-500 text-[10px] mt-1">{fieldErrors.phone}</p>}
-                      {otpError && !otpSent && <p className="text-red-400 text-sm mt-1">{otpError}</p>}
                     </div>
-
-                    {/* OTP Input Section - full width below phone */}
-                    {otpSent && !phoneVerified && (
-                      <motion.div
-                        initial={{ height: 0, opacity: 0 }}
-                        animate={{ height: 'auto', opacity: 1 }}
-                        className="p-4 border border-white/10 bg-white/[0.02] space-y-3"
-                      >
-                        <p className="text-white/50 text-xs text-center">{t.otpSentTo} <span className="text-orange-500 font-mono" dir="ltr">{customerPhone}</span></p>
-                        <div className="flex gap-2 mx-auto w-full max-w-xs">
-                          <input
-                            type="text"
-                            value={otpCode}
-                            onChange={(e) => setOtpCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                            className="flex-1 min-w-0 bg-white/5 border border-white/10 p-2.5 text-white text-center text-lg tracking-[0.3em] font-mono outline-none focus:border-orange-500"
-                            placeholder="000000"
-                            maxLength={6}
-                            dir="ltr"
-                            autoFocus
-                          />
-                          <button
-                            type="button"
-                            onClick={handleVerifyOTP}
-                            disabled={otpCode.length !== 6 || otpLoading}
-                            className={`px-3 py-2.5 font-bold text-[10px] uppercase whitespace-nowrap ${
-                              otpCode.length === 6 && !otpLoading
-                                ? 'bg-orange-500 text-white hover:bg-orange-600'
-                                : 'bg-white/10 text-white/30 cursor-not-allowed'
-                            } transition-colors`}
-                          >
-                            {otpLoading ? t.verifying : t.verify}
-                          </button>
-                        </div>
-                        {otpError && <p className="text-red-400 text-sm text-center">{otpError}</p>}
-                        <div className="flex items-center justify-center gap-6">
-                          <button
-                            type="button"
-                            onClick={handleSendOTP}
-                            disabled={resendCooldown > 0 || otpLoading}
-                            className={`text-sm ${resendCooldown > 0 ? 'text-white/30' : 'text-orange-500 hover:text-orange-400'}`}
-                          >
-                            {resendCooldown > 0
-                              ? `${t.resendIn} ${resendCooldown}s`
-                              : t.resendCode}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setOtpSent(false);
-                              setOtpCode('');
-                              setOtpError('');
-                            }}
-                            className="text-white/30 text-sm hover:text-white/60"
-                          >
-                            {t.changePhone}
-                          </button>
-                        </div>
-                      </motion.div>
-                    )}
 
                     {/* Name — required */}
                     <div>
