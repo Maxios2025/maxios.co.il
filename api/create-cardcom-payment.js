@@ -95,7 +95,7 @@ export default async function handler(req, res) {
     ApiPassword: CARDCOM_API_PASSWORD,
     ReturnUrl: `${SITE_URL}/payment-success?order=${encodeURIComponent(orderNumber)}`,
     SuccessRedirectUrl: `${SITE_URL}/payment-success?order=${encodeURIComponent(orderNumber)}`,
-    ErrorRedirectUrl: `${SITE_URL}/payment-failed?order=${encodeURIComponent(orderNumber)}`,
+    FailedRedirectUrl: `${SITE_URL}/payment-failed?order=${encodeURIComponent(orderNumber)}`,
     WebHookUrl: `${SITE_URL}/api/cardcom-webhook?order=${encodeURIComponent(orderNumber)}`,
     Amount: parseFloat(amount),
     CoinID: 1, // 1 = ILS
