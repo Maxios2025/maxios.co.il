@@ -38,7 +38,14 @@
       "Bash(npx vite build)",
       "Bash(du:*)",
       "Bash(npm audit:*)",
-      "Bash(printf:*)"
+      "Bash(printf:*)",
+      "Bash(grep -E \"\\\\.\\(js|ts\\)$\")",
+      "mcp__Claude_Preview__preview_start",
+      "WebFetch(domain:maxios.co.il)",
+      "Bash(payment\")",
+      "Bash(ls -la .env*)",
+      "Bash(cat .env.local)",
+      "Bash(cat .env)"
     ]
   }
 }

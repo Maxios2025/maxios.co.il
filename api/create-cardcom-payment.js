@@ -114,16 +114,6 @@ export default async function handler(req, res) {
     })),
   };
 
-  // Add invoice (document) generation if customer has email
-  if (customer.email) {
-    cardcomPayload.Document = {
-      To: customer.name,
-      Email: customer.email,
-      Send: true,
-      DocumentType: 320, // 320 = Tax Invoice (חשבונית מס)
-    };
-  }
-
   try {
     // Call CardCom API to create payment page
     const cardcomRes = await fetch(`${CARDCOM_BASE_URL}/LowProfile/Create`, {
