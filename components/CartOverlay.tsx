@@ -62,7 +62,6 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
 
   // Payment method selection
   const [paymentMethod, setPaymentMethod] = useState<'credit' | 'cod'>('credit');
-  const [installments, setInstallments] = useState(1);
   const [cardcomLoading, setCardcomLoading] = useState(false);
 
   // Promo
@@ -145,7 +144,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
         promoCode: appliedPromo?.code || null,
         total: total.toFixed(2),
         paymentMethod: `credit_card`,
-        installments,
+        installments: 1,
         status: 'pending_payment',
         createdAt: new Date().toISOString(),
       };
@@ -158,7 +157,7 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
         body: JSON.stringify({
           orderNumber: currentOrderNumber,
           amount: total,
-          installments,
+          installments: 1,
           customer: { name: customerName, email: customerEmail, phone: customerPhone },
           address: { city: customerCity, street: customerStreet, zip: customerZip },
           items: [{ name: PRODUCT.name, qty, price: subtotal }],
@@ -791,38 +790,6 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
                            'دفع آمن عبر CardCom (Verifone إسرائيل)'}
                         </span>
 
-                        {/* Installments selector — shown when credit card is selected */}
-                        {paymentMethod === 'credit' && (
-                          <div className="mt-4 space-y-2">
-                            <label className="text-white/50 text-xs uppercase tracking-wider block">
-                              {lang === 'en' ? 'Number of installments' : lang === 'he' ? 'מספר תשלומים' : 'عدد الأقساط'}
-                            </label>
-                            <select
-                              value={installments}
-                              onChange={e => setInstallments(parseInt(e.target.value))}
-                              className="w-full bg-black border border-white/20 p-2.5 text-white text-sm outline-none focus:border-orange-500 transition-colors appearance-none cursor-pointer"
-                              dir="ltr"
-                            >
-                              {[1,2,3,4,5,6,7,8,9,10,11,12].map(n => (
-                                <option key={n} value={n}>
-                                  {n === 1
-                                    ? (lang === 'en' ? '1 payment (full)' : lang === 'he' ? 'תשלום אחד (מלא)' : 'دفعة واحدة (كاملة)')
-                                    : (lang === 'en' ? `${n} monthly payments` : lang === 'he' ? `${n} תשלומים חודשיים` : `${n} دفعات شهرية`)}
-                                  {n > 1 ? ` — ₪${Math.ceil(total / n)}` : ''}
-                                </option>
-                              ))}
-                            </select>
-                            {installments > 1 && (
-                              <p className="text-orange-500/70 text-xs">
-                                {lang === 'en'
-                                  ? `₪${Math.ceil(total / installments)} × ${installments} months`
-                                  : lang === 'he'
-                                  ? `₪${Math.ceil(total / installments)} × ${installments} חודשים`
-                                  : `₪${Math.ceil(total / installments)} × ${installments} أشهر`}
-                              </p>
-                            )}
-                          </div>
-                        )}
                       </div>
                     </label>
 
@@ -963,7 +930,6 @@ export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCh
                         <>
                           {lang === 'en' ? 'PAY SECURELY' : lang === 'he' ? 'שלם בצורה מאובטחת' : 'ادفع بأمان'}
                           {' '}₪{total.toFixed(0)}
-                          {installments > 1 && (` / ${installments}`)}
                           <ArrowRight size={20} />
                         </>
                       ) : (
