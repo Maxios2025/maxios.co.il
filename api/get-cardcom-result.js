@@ -112,7 +112,7 @@ export default async function handler(req, res) {
 
     // Send Telegram notification as backup (webhook may not always fire)
     if (isSuccess && orderNumber) {
-      sendTelegramNotification(orderNumber, data).catch(() => {});
+      await sendTelegramNotification(orderNumber, data);
     }
 
     const customer = firestoreOrder;

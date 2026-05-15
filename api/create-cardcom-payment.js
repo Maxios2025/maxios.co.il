@@ -211,8 +211,8 @@ export default async function handler(req, res) {
       ).catch(err => console.error('Firestore pre-save failed (non-critical):', err.message));
     }
 
-    // Notify immediately — don't wait for webhook which may not always fire
-    sendTelegramNewOrder(orderNumber, customer, address, items, total || amount).catch(() => {});
+    // Notify immediately — await so Vercel doesn't kill the request before it sends
+    await sendTelegramNewOrder(orderNumber, customer, address, items, total || amount);
 
     return res.status(200).json({
       url: paymentUrl,
