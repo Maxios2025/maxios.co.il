@@ -74,6 +74,7 @@ export default function PaymentSuccessPage({ lang, onGoHome }: PaymentSuccessPag
   const [status, setStatus] = useState<'verifying' | 'confirmed' | 'error'>('verifying');
   const [paymentResult, setPaymentResult] = useState<PaymentResult | null>(null);
   const [orderNumber, setOrderNumber] = useState('');
+  const [errorDetail, setErrorDetail] = useState('');
   const labels = t[lang];
   const isRTL = lang === 'he' || lang === 'ar';
 
@@ -112,6 +113,7 @@ export default function PaymentSuccessPage({ lang, onGoHome }: PaymentSuccessPag
           });
           setStatus('confirmed');
         } else {
+          setErrorDetail(`Code: ${data.returnCode} — ${data.description || 'no description'}`);
           setStatus('error');
         }
       })
@@ -231,6 +233,9 @@ export default function PaymentSuccessPage({ lang, onGoHome }: PaymentSuccessPag
                lang === 'he' ? 'אימות התשלום נכשל. אם חויבת, פנה לתמיכה.' :
                'فشل التحقق من الدفع. إذا تم تحصيل مبلغ منك، تواصل مع الدعم.'}
             </p>
+            {errorDetail && (
+              <p className="text-red-400/60 text-xs font-mono bg-red-500/5 border border-red-500/20 p-3">{errorDetail}</p>
+            )}
             <a href="mailto:support@maxios.co.il" className="text-orange-500 underline text-sm">support@maxios.co.il</a>
           </motion.div>
         )}
