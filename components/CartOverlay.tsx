@@ -34,7 +34,7 @@ const PRODUCT = {
 };
 
 function calcSubtotal(extraUnits: number) {
-  return (1 + extraUnits) * 999;
+  return (1 + extraUnits) * PRODUCT.price;
 }
 
 export const CartOverlay: React.FC<CartOverlayProps> = ({ lang, promoCodes, onCheckout }) => {
