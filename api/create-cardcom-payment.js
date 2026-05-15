@@ -15,6 +15,31 @@ const CARDCOM_BASE_URL = process.env.CARDCOM_SANDBOX === 'true'
 
 const SITE_URL = process.env.SITE_URL || 'https://maxios.co.il';
 
+async function sendTelegramNewOrder(orderNumber, customer, address, items, total) {
+  const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
+  const CHAT_ID = process.env.TELEGRAM_ORDERS_CHAT_ID;
+  if (!BOT_TOKEN || !CHAT_ID) return;
+
+  const itemsList = items.map(i => `• ${i.name} x${i.qty} — ₪${i.price}`).join('\n');
+  const fullAddress = [address.street, address.city, address.zip].filter(Boolean).join(', ');
+
+  const message =
+    `🛒 הזמנה חדשה!\n\n` +
+    `🔢 מספר: ${orderNumber}\n` +
+    `👤 שם: ${customer.name}\n` +
+    `📞 טלפון: ${customer.phone}\n` +
+    `📍 כתובת: ${fullAddress}\n` +
+    `\n${itemsList}\n` +
+    `💰 סה"כ: ₪${total}\n\n` +
+    `⏳ ממתין לאישור תשלום...`;
+
+  await fetch(`https://api.telegram.org/bot${BOT_TOKEN}/sendMessage`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chat_id: CHAT_ID, text: message }),
+  }).catch(err => console.error('Telegram new-order notify error:', err));
+}
+
 // Convert a flat/nested JS object to Firestore REST fields format
 function buildFirestoreFields(obj) {
   const fields = {};
@@ -185,6 +210,9 @@ export default async function handler(req, res) {
         }
       ).catch(err => console.error('Firestore pre-save failed (non-critical):', err.message));
     }
+
+    // Notify immediately — don't wait for webhook which may not always fire
+    sendTelegramNewOrder(orderNumber, customer, address, items, total || amount).catch(() => {});
 
     return res.status(200).json({
       url: paymentUrl,

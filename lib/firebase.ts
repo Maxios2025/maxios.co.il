@@ -266,6 +266,18 @@ export const deletePromoCodeFromDB = async (codeStr: string) => {
 };
 
 // Orders
+export const fetchOrders = async (): Promise<Order[]> => {
+  try {
+    const ordersRef = collection(db, 'orders');
+    const querySnapshot = await getDocs(ordersRef);
+    const orders = querySnapshot.docs.map(d => d.data() as Order);
+    return orders.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  } catch (error) {
+    console.error('Error fetching orders:', error);
+    return [];
+  }
+};
+
 export const saveOrder = async (order: Order) => {
   // Always save to localStorage first
   const cached = localStorage.getItem('maxios_orders');

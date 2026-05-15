@@ -1,9 +1,9 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { LogOut, Check, X, Clock, Ticket, Plus, Trash2, Edit2, Camera, Shield } from 'lucide-react';
+import { LogOut, Check, X, Clock, Ticket, Plus, Trash2, Edit2, Camera, Shield, ShoppingBag, RefreshCw, Phone, MapPin, CreditCard } from 'lucide-react';
 import { Language, PromoCode, Product } from '../App';
-import { saveProduct, deleteProductFromDB, savePromoCode, deletePromoCodeFromDB } from '../lib/firebase';
+import { saveProduct, deleteProductFromDB, savePromoCode, deletePromoCodeFromDB, fetchOrders, Order } from '../lib/firebase';
 
 interface AdminConsoleProps {
   lang: Language;
@@ -15,7 +15,18 @@ interface AdminConsoleProps {
 }
 
 export const AdminConsole: React.FC<AdminConsoleProps> = ({ lang, onLogout, promoCodes, setPromoCodes, products, setProducts }) => {
-  const [activeTab, setActiveTab] = useState<'promocodes' | 'products'>('promocodes');
+  const [activeTab, setActiveTab] = useState<'orders' | 'promocodes' | 'products'>('orders');
+  const [orders, setOrders] = useState<Order[]>([]);
+  const [ordersLoading, setOrdersLoading] = useState(false);
+
+  const loadOrders = async () => {
+    setOrdersLoading(true);
+    const data = await fetchOrders();
+    setOrders(data);
+    setOrdersLoading(false);
+  };
+
+  useEffect(() => { loadOrders(); }, []);
 
   // Promo Code States
   const [newCode, setNewCode] = useState("");
@@ -201,6 +212,7 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ lang, onLogout, prom
         </div>
         <nav className="space-y-2">
           {[
+            { id: 'orders', label: 'Orders', icon: ShoppingBag },
             { id: 'promocodes', label: 'Promo Codes', icon: Ticket },
           ].map(tab => (
             <button
@@ -228,6 +240,74 @@ export const AdminConsole: React.FC<AdminConsoleProps> = ({ lang, onLogout, prom
         </div>
 
         <AnimatePresence mode="wait">
+          {activeTab === 'orders' && (
+            <motion.div key="orders" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-8 relative z-10">
+              <div className="flex justify-between items-center">
+                <h3 className="text-4xl font-black italic text-white uppercase tracking-tighter">ORDERS</h3>
+                <button onClick={loadOrders} className="flex items-center gap-2 px-5 py-2 border border-white/10 text-white/40 hover:text-white hover:border-orange-500/40 transition-all text-[10px] font-black uppercase tracking-widest">
+                  <RefreshCw size={13} className={ordersLoading ? 'animate-spin' : ''} /> Refresh
+                </button>
+              </div>
+
+              {ordersLoading ? (
+                <div className="py-24 text-center text-white/20 text-xs uppercase tracking-widest font-black">Loading...</div>
+              ) : orders.length === 0 ? (
+                <div className="py-24 text-center text-white/20 text-xs uppercase tracking-widest font-black border border-dashed border-white/10">No Orders Yet</div>
+              ) : (
+                <div className="space-y-4">
+                  {orders.map((order) => {
+                    const isPaid = (order as any).status === 'paid';
+                    const isPending = (order as any).status === 'pending_payment';
+                    const isFailed = (order as any).status === 'payment_failed';
+                    const statusColor = isPaid ? 'text-green-400 border-green-500/30 bg-green-500/5' : isFailed ? 'text-red-400 border-red-500/30 bg-red-500/5' : 'text-yellow-400 border-yellow-500/30 bg-yellow-500/5';
+                    const statusLabel = isPaid ? '✓ PAID' : isFailed ? '✗ FAILED' : '⏳ PENDING';
+                    const date = new Date(order.createdAt).toLocaleDateString('he-IL', { day: '2-digit', month: '2-digit', year: '2-digit', hour: '2-digit', minute: '2-digit' });
+
+                    return (
+                      <div key={order.orderNumber} className="border border-white/10 bg-white/[0.02] p-6 space-y-4 hover:border-orange-500/20 transition-all">
+                        {/* Header */}
+                        <div className="flex justify-between items-start gap-4">
+                          <div>
+                            <span className="text-orange-500 font-mono font-black text-sm">{order.orderNumber}</span>
+                            <span className="text-white/20 text-xs ml-3">{date}</span>
+                          </div>
+                          <span className={`text-[10px] font-black uppercase tracking-widest px-3 py-1 border ${statusColor}`}>{statusLabel}</span>
+                        </div>
+
+                        {/* Customer */}
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-sm">
+                          <div className="flex items-center gap-2 text-white/70">
+                            <Shield size={13} className="text-orange-500 flex-shrink-0" />
+                            <span className="font-medium">{order.customer?.name || '—'}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-white/50">
+                            <Phone size={13} className="text-orange-500/60 flex-shrink-0" />
+                            <span dir="ltr">{order.customer?.phone || '—'}</span>
+                          </div>
+                          <div className="flex items-center gap-2 text-white/50 md:col-span-2">
+                            <MapPin size={13} className="text-orange-500/60 flex-shrink-0" />
+                            <span>{[order.customer?.street, order.customer?.city, order.customer?.zip].filter(Boolean).join(', ') || '—'}</span>
+                          </div>
+                        </div>
+
+                        {/* Items + Total */}
+                        <div className="border-t border-white/5 pt-3 flex justify-between items-center">
+                          <span className="text-white/30 text-xs">
+                            {order.items?.map(i => `${i.name} ×${i.qty}`).join(', ') || '—'}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            <CreditCard size={13} className="text-white/20" />
+                            <span className="text-white font-black">₪{order.total || order.subtotal || '—'}</span>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </motion.div>
+          )}
+
           {activeTab === 'promocodes' && (
             <motion.div key="codes" initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -10 }} className="space-y-12 relative z-10">
               <h3 className="text-4xl font-black italic text-white uppercase tracking-tighter">PROMO LOGIC ENGINE</h3>

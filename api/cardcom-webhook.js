@@ -67,17 +67,23 @@ async function getCardComResult(lowProfileCode) {
   return res.json();
 }
 
+const CARD_TYPE_NAMES = {
+  1: 'Visa', 2: 'Mastercard', 3: 'Amex', 4: 'Diners',
+  5: 'Discover', 6: 'JCB', 7: 'Maestro', 8: 'Unionpay',
+};
+
 // Send Telegram notification for completed payment
 async function sendTelegramNotification(orderNumber, result, status) {
   const BOT_TOKEN = process.env.TELEGRAM_BOT_TOKEN;
   const ORDERS_CHAT_ID = process.env.TELEGRAM_ORDERS_CHAT_ID;
   if (!BOT_TOKEN || !ORDERS_CHAT_ID) return;
 
+  const cardBrand = CARD_TYPE_NAMES[result.CardType] || result.CardBrand || result.CardTypeName || 'Card';
   const emoji = status === 'paid' ? '✅' : '❌';
   const message = status === 'paid'
     ? `${emoji} PAYMENT RECEIVED!\n\n` +
       `🔢 Order: ${orderNumber}\n` +
-      `💳 Card: *${result.Last4Digits || '****'}\n` +
+      `💳 ${cardBrand} *${result.Last4Digits || '****'}\n` +
       `👤 Cardholder: ${result.CardOwnerName || 'N/A'}\n` +
       `💰 Amount: ₪${result.FirstPaymentAmount || 'N/A'}\n` +
       `📄 Installments: ${result.NumberOfPayments || 1}\n` +
@@ -125,11 +131,14 @@ export default async function handler(req, res) {
     const isSuccess = result.ReturnCode === 0 || result.ResponseCode === 0;
 
     const status = isSuccess ? 'paid' : 'payment_failed';
+    const cardBrandName = CARD_TYPE_NAMES[result.CardType] || result.CardBrand || result.CardTypeName || '';
     const firestoreUpdates = {
       status,
+      paymentMethod: 'card',
       paymentVerifiedAt: new Date().toISOString(),
       transactionId: String(result.TranId || ''),
       last4Digits: String(result.Last4Digits || ''),
+      cardBrand: cardBrandName,
       cardOwnerName: result.CardOwnerName || '',
       invoiceNumber: String(result.InvoiceNumber || ''),
       invoiceType: String(result.InvoiceType || ''),

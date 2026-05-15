@@ -15,6 +15,11 @@ interface PaymentResult {
   numberOfPayments: number;
   firstPaymentAmount: number | null;
   invoiceNumber: string | null;
+  customerName: string | null;
+  customerPhone: string | null;
+  customerCity: string | null;
+  customerStreet: string | null;
+  customerZip: string | null;
 }
 
 const t = {
@@ -30,6 +35,8 @@ const t = {
     backHome: 'BACK TO STORE',
     verifying: 'Verifying payment...',
     support: 'Need help? Contact us at support@maxios.co.il',
+    deliveryTo: 'Delivery To',
+    address: 'Address',
   },
   he: {
     title: 'התשלום בוצע בהצלחה!',
@@ -43,6 +50,8 @@ const t = {
     backHome: 'חזרה לחנות',
     verifying: 'מאמת תשלום...',
     support: 'צריך עזרה? פנה אלינו בכתובת support@maxios.co.il',
+    deliveryTo: 'שם המקבל',
+    address: 'כתובת למשלוח',
   },
   ar: {
     title: 'تمت عملية الدفع بنجاح!',
@@ -56,6 +65,8 @@ const t = {
     backHome: 'العودة إلى المتجر',
     verifying: 'جاري التحقق من الدفع...',
     support: 'تحتاج مساعدة؟ تواصل معنا على support@maxios.co.il',
+    deliveryTo: 'اسم المستلم',
+    address: 'عنوان التوصيل',
   },
 };
 
@@ -72,17 +83,16 @@ export default function PaymentSuccessPage({ lang, onGoHome }: PaymentSuccessPag
     const lowProfileCode = params.get('LowProfileCode') || params.get('lowProfileCode') || '';
     setOrderNumber(order);
 
-    if (!lowProfileCode) {
-      // No code to verify — still show success (webhook already processed it)
+    if (!lowProfileCode && !order) {
       setStatus('confirmed');
       return;
     }
 
-    // Verify payment result with our backend
+    // Always verify — either with LowProfileCode from URL or let the API look it up via orderNumber
     fetch('/api/get-cardcom-result', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ lowProfileCode }),
+      body: JSON.stringify({ lowProfileCode, orderNumber: order }),
     })
       .then(res => res.json())
       .then(data => {
@@ -94,6 +104,11 @@ export default function PaymentSuccessPage({ lang, onGoHome }: PaymentSuccessPag
             numberOfPayments: data.numberOfPayments || 1,
             firstPaymentAmount: data.firstPaymentAmount,
             invoiceNumber: data.invoiceNumber,
+            customerName: data.customerName,
+            customerPhone: data.customerPhone,
+            customerCity: data.customerCity,
+            customerStreet: data.customerStreet,
+            customerZip: data.customerZip,
           });
           setStatus('confirmed');
         } else {
@@ -149,6 +164,20 @@ export default function PaymentSuccessPage({ lang, onGoHome }: PaymentSuccessPag
                 <div className="flex justify-between items-center py-2 border-b border-white/5">
                   <span className="text-white/50 text-sm">{labels.orderNumber}</span>
                   <span className="text-orange-500 font-mono font-bold">{orderNumber}</span>
+                </div>
+              )}
+              {paymentResult?.customerName && (
+                <div className="flex justify-between items-center py-2 border-b border-white/5">
+                  <span className="text-white/50 text-sm">{labels.deliveryTo}</span>
+                  <span className="text-white font-medium">{paymentResult.customerName}</span>
+                </div>
+              )}
+              {(paymentResult?.customerStreet || paymentResult?.customerCity) && (
+                <div className="flex justify-between items-start py-2 border-b border-white/5">
+                  <span className="text-white/50 text-sm">{labels.address}</span>
+                  <span className="text-white text-sm text-right">
+                    {[paymentResult.customerStreet, paymentResult.customerCity, paymentResult.customerZip].filter(Boolean).join(', ')}
+                  </span>
                 </div>
               )}
               {paymentResult?.transactionId && (
