@@ -29,7 +29,7 @@ interface CartOverlayProps {
 const PRODUCT = {
   id: 'pro18',
   name: 'MAXIOS PRO-18',
-  price: 999,
+  price: 1,
   img: '/hero-poster.jpeg',
 };
 
